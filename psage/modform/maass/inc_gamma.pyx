@@ -1,35 +1,39 @@
 # encoding: utf-8
 # cython: profile=False
-# -*- coding=utf-8 -*-
-#*****************************************************************************
-#  Copyright (C) 2012
-#
-#  Authors:
-#  Fredrik Strömberg <stroemberg@mathematik.tu-darmstadt.de>
-#  Stephan Ehlen <ehlen@mathematik.tu-darmstadt.de>
-#  
-#  Distributed under the terms of the GNU General Public License (GPL)
-#
-#    This code is distributed in the hope that it will be useful,
-#    but WITHOUT ANY WARRANTY; without even the implied warranty of
-#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-#    General Public License for more details.
-#
-#  The full text of the GPL is available at:
-#
-#                  http://www.gnu.org/licenses/
-#*****************************************************************************
 r"""
 Algorithms for computing the incomplete gamma function (and related functions)
-
-
 
 Conventions for return codes:
  '0' - success
  '1' - failure of reaching precision
  '-1'- error in input parameters
- 
+...
+
+AUTHORS:
+
+- Fredrik Strömberg (2010): initial version
+
+- Stephan Ehlen (2012-11-05): corrections for n=0
+
+...
 """
+
+#************************************************************************************
+#       Copyright (C) 2012 Fredrik Strömberg <stroemberg@mathematik.tu-darmstadt.de>
+#       Copyright (C) 2012 Stephan Ehlen <ehlen@mathematik.tu-darmstadt.de>
+#
+#  Distributed under the terms of the GNU General Public License (GPLv2)
+#
+#    This code is distributed in the hope that it will be useful,
+#    but WITHOUT ANY WARRANTY; without even the implied warranty of
+#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+#    General Public License for more details.
+#
+#  The full text of the GPL is available at:
+#
+#                  http://www.gnu.org/licenses/
+#*************************************************************************************  
+
 
 #include "sage/ext/cdefs.pxi"
 #include "sage/ext/interrupt.pxi"  # ctrl-c interrupt block support
@@ -67,6 +71,69 @@ import cython
 ####
 
 cpdef RealNumber incgamma_int(int n,RealNumber x,int verbose=0):
+    r"""
+    Return the (upper) incomplete gamma function $\Gamma(n,x)$
+    for an integer $n$ and a real number $x$.
+    This is defined to be the value of the integral
+    $\int_x^\infty e^{-t} t^{n-1}dt$.
+
+    INPUT:
+
+     - ``n`` - integer
+
+     - ``x`` - real number (type: sage.rings.real_mpfr.RealNumber)
+
+     - `verbose` -- integer
+
+    OUTPUT:
+
+    real number -- the value of the integral
+
+    .. SEEALSO::
+        :func:`incomplete_gamma`
+        :func:`sage.mpmath.mp.gammainc`
+        :func:`Ei`
+        :func:`sage.math.mp.Ei`
+
+    EXAMPLES:
+
+    ::
+
+        sage: from psage.modform.maass.inc_gamma import *
+        sage: incgamma_int(1,RealNumber(0.2234))
+        0.799794867355491
+
+    The case $n=0$ is a special case.
+    We have $\Gamma(0,x)=-Ei(-x)$.
+
+    ::
+
+        sage: incgamma_int(0,RealNumber(0.36234635)
+        0.769935077338957
+        sage: -Ei(-RealNumber(0.36234635))
+        0.769935077338957
+
+    ::
+
+    We can also use higher precision.
+    Note that our implementation does not use the maximal
+    precision.
+
+    ::
+
+        sage: import mpmath
+        sage: RF=RealField(183)
+        sage: x=RF(41.11111111123)
+        sage: mpmath.mp.prec=183      
+        sage: incgamma_int(0,RF(x))-mpmath.mp.gammainc(0,x)
+        mpf('-1.16396055627741413643051183033845195972772969380039212717e-71')
+
+    AUTHORS:
+
+    - Fredrik Strömberg (2010)
+
+    - Stephan Ehlen (2012-11-12)
+    """    
     cdef RealNumber res
     cdef int ok = 1
     res = x.parent()(0)
@@ -85,17 +152,57 @@ cpdef RealNumber incgamma_int(int n,RealNumber x,int verbose=0):
     else:
         raise ArithmeticError,"Incomplete Gamma failed with code:{0}".format(ok)
     
-####  The incomplete gamma function of half-integral parameter
 cpdef RealNumber incgamma_hint(int n,RealNumber x,int verbose=0):
     r"""
-    Incomplete Gamma function of half-integer parameter, Gamma(n+1/2,x).
+    The incomplete Gamma function of a half-integer parameter
+    $Gamma(n+1/2,x)$.
 
     INPUT:
-    -`n` -- integer
-    -`x` -- real number
-    -`verbose` -- integer
 
-    """
+    - ``n`` -- integer
+    
+    - ``x`` -- real number
+    
+    - ``verbose`` -- integer
+
+    OUTPUT:
+
+    real number -- the value of the integral
+
+    .. SEEALSO::
+        :func:`incomplete_gamma`
+        :func:`sage.mpmath.mp.gammainc`
+
+    EXAMPLES:
+
+    ::
+
+        sage: from psage.modform.maass.inc_gamma import *
+        sage: incgamma_hint(1,RealNumber(0.2234))
+        0.824557698593135
+
+    ::
+
+    We can also use higher precision.
+    Note that our implementation does not use the maximal
+    precision.
+
+    ::
+
+        sage: import mpmath
+        sage: RF=RealField(183)
+        sage: x=RF(3.223232)
+        sage: mpmath.mp.prec=183
+        sage: incgamma_hint(1,RF(3.223232))-mpmath.mp.gammainc(1+1/2,RF(3.223232))
+        mpf('-1.01957882312476945729848345457133555557830691532327602309e-56')
+
+
+    AUTHORS:
+
+    - Fredrik Strömberg (2010)
+
+    - Stephan Ehlen (2012-11-12): documentation
+    """    
     cdef RealNumber res
     cdef int ok = 1
     res = x.parent()(0)
@@ -105,10 +212,45 @@ cpdef RealNumber incgamma_hint(int n,RealNumber x,int verbose=0):
     else:
         raise ArithmeticError,"Incomplete Gamma failed with code:{0}".format(ok)
     
-## The exponential integral
 cpdef RealNumber Ei_ml(RealNumber x):
     r"""
-    Compute Ei(x)-ln|x| where Ei(x) is the exponential integral of x.    
+    Compute Ei(x)-ln|x| where Ei(x) is the exponential integral of x
+    using the taylor series expansion.
+
+    INPUT:
+    
+    - ``x`` -- real number
+    
+
+    OUTPUT:
+
+    real number -- the value of the integral
+
+    .. SEEALSO::
+        :func:`Ei`
+        :func:`sage.mpmath.mp.Ei`
+
+    NOTE:
+
+    This function should not be called by itself.
+    It has to be called with an argument that has the approriate working precision.
+
+    EXAMPLES:
+
+    ::
+
+        sage: from psage.modform.maass.inc_gamma import *
+        sage: Ei_ml(-1.0)    
+        -0.219383934395521
+
+    ::
+
+
+    AUTHORS:
+
+    - Fredrik Strömberg (2010)
+
+    - Stephan Ehlen (2012-11-12)
     """
     cdef RealNumber res
     cdef int ok = 1
@@ -120,6 +262,70 @@ cpdef RealNumber Ei_ml(RealNumber x):
         raise ArithmeticError,"Exponential integral failed with code:{0}".format(ok)
 
 cpdef RealNumber ei(RealNumber x, int verbose=0):
+    r"""
+    Compute the exponential integral of x.
+
+    INPUT:
+    
+    - ``x`` -- real number
+    
+    - ``verbose`` -- integer
+    
+
+    OUTPUT:
+
+    real number -- the value of the integral
+
+    .. SEEALSO::
+        :func:`Ei`
+        :func:`sage.mpmath.mp.Ei`
+
+    NOTE:
+            We dynamically increase working precision to obtain better results.
+            Note however that the resultis not guaranteed to be correct
+            up to the precision of the input ``x``.
+            TODO: Add details about the error!
+
+
+    EXAMPLES:
+
+    ::
+
+        sage: from psage.modform.maass.inc_gamma import *
+        sage: ei(-1.0)    
+        -0.219383934395520
+
+    We use the asymptotic formula when possible.
+    In the following example, the taylor expansion
+    causes cancellation if the working precision is
+    not increased. In contrast, the asymptotic formula
+    provides 3 correct digits (relative) even without increasing the precision.
+
+    ::
+
+       sage: ei(-41.0)
+       -3.72316677646179e-20
+       sage: ei_taylor(-41.0)
+       0.0159930210062376
+       sage: ei_asymp(-41.0)
+       -3.71893441840568e-20
+       sage: import mpmath
+       sage: mpmath.mp.prec=53
+       sage: ei_asymp(-41.0)-mpmath.mp.ei(-41.0)
+       mpf('4.2323580542935789e-23')
+       sage: ei(-41.0)-mpmath.mp.ei(-41.0)
+       mpf('-1.8115778539392437e-32')
+
+    So we have 32 digits correct with our error bound in this example.
+    Relatively, this is still 12 correct digits.
+    
+
+    AUTHORS:
+
+    - Fredrik Strömberg (2010)
+
+    - Stephan Ehlen (2012-11-12)
+    """
     cdef int wp = x.prec() + 20
     cdef int xabs= abs(x.integer_part())
     cdef RealField_class RF_orig = x.parent()
@@ -316,11 +522,11 @@ cdef int ei_taylor_c(mpfr_t res, mpfr_t x, int verbose=0):
     cdef int prec = mpfr_get_prec(x)
     mpfr_init2(lnx, prec)
     ok = Ei_ml_c(res, x)
-    #if verbose>0:
+    #if verbose>2:
     #    print  "Ei(x)-log(x)={0}, prec={1}".format(mpfr_get_ld(res,rnd_re), prec)
     mpfr_abs(x,x,rnd_re)
     mpfr_log(lnx,x,rnd_re)
-    #if verbose>0:
+    #if verbose>2:
     #    print  "ln(x)={0}, prec={1}".format(mpfr_get_ld(lnx,rnd_re), prec)
     mpfr_add(res,res,lnx,rnd_re)
     mpfr_clear(lnx)
