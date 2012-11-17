@@ -32,7 +32,7 @@ cdef extern from "stdio.h":
 cdef mpc_rnd_t rnd
 cdef mpfr_rnd_t rnd_re
 import cython
-from cython.parallel cimport parallel, prange
+from cython.parallel cimport parallel, prange, threadid
 rnd = MPC_RNDNN
 rnd_re = GMP_RNDN
 from sage.rings.complex_mpc cimport MPComplexNumber,MPComplexField_class
@@ -925,23 +925,31 @@ cpdef setup_matrix_for_harmonic_Maass_waveforms_sym(H,RealNumber Y_in,int M,int 
         print "Ml, Ql =",Ml, Ql
     if verbose>0:
         print "Threads: ",threads
-    cdef int a,b,it_size
+    cdef int it_size
     it_size = floor((Ml+0.0) / threads)
     if verbose>0:
         print "iteration size: ",it_size
     if verbose>0:
         print "Starting first parallel loop"
-    for l in prange(threads, nogil=True):
-        a=l*it_size
-        if l==threads-1:
-            b=Ml
+    cdef int *a, *b
+    a = <int *> malloc(sizeof(int) * threads)
+    b = <int *> malloc(sizeof(int) * threads)
+    x = <int *> malloc(sizeof(int) * threads)
+    for l in prange(1, nogil=True):
+        a[l] = l*it_size
+        if l == threads - 1:
+            b[l] = Ml
         else:
-            b=a+it_size
+            b[l] = a[l] + it_size
         if verbose>0:
-            printf("a,b=%d,%d\n",a,b)
-        setcossin2(ef2cosv,ef2sinv,Xm,nvec,nc, Ql, Ml, a, b,  prec)
+            x[l]= threadid()
+            printf("a,b=%d,%d,  thread:%d \n",a[l],b[l],x[l])
+        setcossin2(ef2cosv,ef2sinv,Xm,nvec,nc, Ql, Ml, a[l], b[l],  prec)
         with gil:
-            for n in xrange(a,b):
+            for n in xrange(a[l],b[l]):
+                if verbose>0:
+                    x[l]=threadid()
+                    printf('n=%d in thread %d\n',n, x[l])
                 for jcusp in xrange(nc):
                     mpfr_set(nr,nvec[jcusp][n],rnd_re)
                     #nr=nvec[n,jcusp]
@@ -1017,6 +1025,7 @@ cpdef setup_matrix_for_harmonic_Maass_waveforms_sym(H,RealNumber Y_in,int M,int 
                                     ## If none of them are variables this means
                                     ## that they are both set in the principal parts
                                     mpfr_set_si(besv[icusp][jcusp][n][j],0,rnd_re)
+        printf('done: %d\n',l)
     cdef int nrows,ncols
     nrows = int(V.nrows()); ncols = int(V.ncols())
     if verbose>1:
@@ -1027,16 +1036,16 @@ cpdef setup_matrix_for_harmonic_Maass_waveforms_sym(H,RealNumber Y_in,int M,int 
             mpc_init2(V._matrix[n][l],prec)
             mpc_set_ui(V._matrix[n][l],0,rnd)
     if verbose>0:
-        print "Starting third parallel loop"
+        print "Starting second parallel loop"
     for l in prange(threads, nogil=True):
-        a = l*it_size
-        if l == threads - 1:
-            b = Ml
+        a[l]=l*it_size
+        if l==threads-1:
+            b[l]=Ml
         else:
-            b = a + it_size
+            b[l]=a[l]+it_size
         if verbose>0:
-            printf("a,b=%d,%d\n",a,b)
-        setV(V._matrix, RCvec,besv,Ypb,ef1cosv,ef1sinv,ef2cosv,ef2sinv, nc, Ql, Ml, a, b, prec)
+            printf("a,b=%d,%d\n",a[l],b[l])
+        setV(V._matrix, RCvec,besv,Ypb,ef1cosv,ef1sinv,ef2cosv,ef2sinv, nc, Ql, Ml, a[l], b[l], prec)
 
     if verbose>1:
         print "Mi,Ms=",Ms,Mf
@@ -1068,23 +1077,20 @@ cpdef setup_matrix_for_harmonic_Maass_waveforms_sym(H,RealNumber Y_in,int M,int 
     mpc_init2(ppc_minus,prec)
     mpc_init2(summa,prec)
     mpc_init2(summa_minus,prec)
-    cdef mpc_t t[2]
-    mpc_init2(t[0],prec)
-    mpc_init2(t[1],prec)
     f1 = CF(0); f2=CF(0)
     #verbose=3
     if verbose>0:
         print "Starting fourth parallel loop"
     for jj in prange(threads, nogil=True):
-        a=jj*it_size
+        a[jj]=jj*it_size
         if jj==threads-1:
-            b=Ml
+            b[jj]=Ml
         else:
-            b=a+it_size
+            b[jj]=a[jj]+it_size
         if verbose>0:
-            printf("a,b=%d,%d\n",a,b)
+            printf("a,b=%d,%d\n",a[jj],b[jj])
         with gil:
-            for n in xrange(a,b):
+            for n in xrange(a[jj],b[jj]):
                 for icusp in range(nc):
                     mpfr_set(nr,nvec[icusp][n],rnd_re)
                     mpfr_mul(nrY2pi,nr,twopiY,rnd_re)
@@ -1261,23 +1267,22 @@ cpdef setup_matrix_for_harmonic_Maass_waveforms_sym(H,RealNumber Y_in,int M,int 
                             for j in range(Ql):
                                 if mpfr_zero_p(Ypb[icusp][jcusp][j])<>0:
                                     continue
-                                with nogil:
-                                    mpfr_mul(tmpab,besv[icusp][jcusp][l][j],RCvec[icusp][jcusp][j][0],rnd_re)
-                                    if mpfr_get_si(RCvec[icusp][jcusp][j][2],rnd_re) == 0:
-                                        mpfr_mul(tmpcos,ef2cosv[icusp][n][j],ef1cosv[icusp][jcusp][l][j],rnd_re)
-                                        mpfr_mul(tmpsin,ef2sinv[icusp][n][j],ef1sinv[icusp][jcusp][l][j],rnd_re)
-                                        mpfr_sub(tmpar1,tmpcos,tmpsin,rnd_re)
-                                        mpfr_mul_ui(tmpar1,tmpar1,2,rnd_re)
-                                        mpc_mul_fr(tmp2,tmp2,tmpar,rnd)
-                                    else:
-                                        mpfr_sin(tmpar1,tmpar1,rnd_re)
-                                        mpfr_mul(tmpcos,ef2sinv[icusp][n][j],ef1cosv[icusp][jcusp][l][j],rnd_re)
-                                        mpfr_mul(tmpsin,ef2cosv[icusp][n][j],ef1sinv[icusp][jcusp][l][j],rnd_re)
-                                        mpfr_add(tmpar1,tmpcos,tmpsin,rnd_re)
-                                        mpc_set_si_si(tmp2,0,2,rnd)
-                                        mpc_mul_fr(tmp2,tmp2,tmpar1,rnd)
-                                    mpc_mul_fr(tmp2,tmp2,tmpab,rnd)
-                                    mpc_add(summa_minus,summa_minus,tmp2,rnd)
+                                mpfr_mul(tmpab,besv[icusp][jcusp][l][j],RCvec[icusp][jcusp][j][0],rnd_re)
+                                if mpfr_get_si(RCvec[icusp][jcusp][j][2],rnd_re) == 0:
+                                    mpfr_mul(tmpcos,ef2cosv[icusp][n][j],ef1cosv[icusp][jcusp][l][j],rnd_re)
+                                    mpfr_mul(tmpsin,ef2sinv[icusp][n][j],ef1sinv[icusp][jcusp][l][j],rnd_re)
+                                    mpfr_sub(tmpar1,tmpcos,tmpsin,rnd_re)
+                                    mpfr_mul_ui(tmpar1,tmpar1,2,rnd_re)
+                                    mpc_mul_fr(tmp2,tmp2,tmpar,rnd)
+                                else:
+                                    mpfr_sin(tmpar1,tmpar1,rnd_re)
+                                    mpfr_mul(tmpcos,ef2sinv[icusp][n][j],ef1cosv[icusp][jcusp][l][j],rnd_re)
+                                    mpfr_mul(tmpsin,ef2cosv[icusp][n][j],ef1sinv[icusp][jcusp][l][j],rnd_re)
+                                    mpfr_add(tmpar1,tmpcos,tmpsin,rnd_re)
+                                    mpc_set_si_si(tmp2,0,2,rnd)
+                                    mpc_mul_fr(tmp2,tmp2,tmpar1,rnd)
+                                mpc_mul_fr(tmp2,tmp2,tmpab,rnd)
+                                mpc_add(summa_minus,summa_minus,tmp2,rnd)
                                 #summa_minus=summa_minus+ch*tmpc
                                 #summa=summa+ef2[n(2):,j,icusp]*tmpc*ch*ppc
                                 #if verbose>2:
@@ -1351,7 +1356,8 @@ cpdef setup_matrix_for_harmonic_Maass_waveforms_sym(H,RealNumber Y_in,int M,int 
 
     sage_free(variable_a0_minus)
     sage_free(variable_a0_plus)
-
+    sage_free(a)
+    sage_free(b)
 
     if Ypb<>NULL:
         for i in range(nc):
@@ -1493,15 +1499,18 @@ cpdef setup_matrix_for_harmonic_Maass_waveforms_sym(H,RealNumber Y_in,int M,int 
     return W
 
 cdef void setcossin2(mpfr_t *** lcos, mpfr_t *** lsin, mpfr_t * Xm, mpfr_t ** nvec, int nc, int Ql, int Ml, int a, int b, mpfr_prec_t prec) nogil:
-    cdef int j = 0
-    cdef int n = 0
-    cdef int jcusp = 0
+    cdef int j
+    cdef int n
+    cdef int jcusp
     cdef mpfr_t tmpar,nr
     mpfr_init2(tmpar,prec)
     mpfr_init2(nr,prec)
+    cdef int x = threadid()
+    printf('in setcossin2, a, b, thread = %d, %d, %d\n', a, b, x)
     for n in xrange(a,b):
         for jcusp in xrange(nc):
             mpfr_set(nr,nvec[jcusp][n],rnd_re)
+            printf('nr=,%d thread=%d\n',mpfr_get_d(nr,rnd_re),x)
             for j in xrange(Ql):
                 mpfr_init2(lcos[jcusp][n][j],prec)
                 mpfr_init2(lsin[jcusp][n][j],prec)
