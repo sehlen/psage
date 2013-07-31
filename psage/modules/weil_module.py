@@ -58,6 +58,7 @@ from sage.modular.arithgroup.arithgroup_element import ArithmeticSubgroupElement
 #_sage_const_8 = Integer(8);
 #_sage_const_10000 = Integer(10000)
 
+
 ###################################
 ## CLASS WEIL_MODULE
 ###################################
