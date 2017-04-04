@@ -206,8 +206,6 @@ cpdef cython_invariants_matrices(FQM, K = QQbar, proof = True, debug=0, return_H
         if debug > 0: print 'positive characteristic: ', q
         if 1 != q % l:
             raise ValueError( '%d must be = 1 modulo %d' %(q, l))
-        if not q % 4 == 1:
-                raise ValueError( '%d must be = 1 modulo 4.' %(q))
         if not is_prime_power(l):
             raise NotImplementedError('This function can only be called with p-modules.')
 
@@ -474,9 +472,11 @@ cpdef reconstruction(x):
 cpdef cython_invariants(FQM, use_reduction = True, proof = False, checks = False, debug=0, K = None):
     if use_reduction and K == None:
         found = False
-        p = FQM.level()*10
+        p = FQM.level()
+	if p == 2:
+	    p = 5
         while not found:
-            if p % lcm(4,FQM.level()) == 1:
+            if p % FQM.level() == 1:
                 found = True
             else:
                 p = next_prime(p)

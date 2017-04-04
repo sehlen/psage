@@ -188,7 +188,7 @@ class VectorValuedModularForms(SageObject):
             raise RuntimeError("Negative dimension (= {0}, {1})!".format(dim, dimr))
         return dim
 
-    def dimension_cusp_forms(self, k, ignore=False, no_inv = False, test_positive = False, proof = False, debug=1):
+    def dimension_cusp_forms(self, k, ignore=False, no_inv = False, test_positive = False, proof = False, debug=0):
         if debug>0:
             if self._g is not None:
                 print "Computing dimension for {}".format(self._g)
