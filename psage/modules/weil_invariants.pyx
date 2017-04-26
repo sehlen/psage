@@ -282,10 +282,10 @@ cpdef cython_invariants_matrices(FQM, K = QQbar, proof = True, debug=0, return_H
             w = K(FQM.order()).sqrt()
             if w.complex_embedding().real().sign() < 0:
                 w = -w
-            if 1 == s2: 
-                table = [s*((z**p) + (z**p).conjugate())/w for p in range(l)]
+            if 1 == s2:
+                table0 = [s*((z**p) + (z**p).conjugate())/w for p in range(l)]
             else:
-                table = [s*((z**p) - (z**p).conjugate())/w for p in range(l)]
+                table0 = [s*((z**p) - (z**p).conjugate())/w for p in range(l)]
         else:
             if K == QQbar:
                 if debug > 0: print 'QQbar'
@@ -298,10 +298,11 @@ cpdef cython_invariants_matrices(FQM, K = QQbar, proof = True, debug=0, return_H
             else:
                 z = K(exp(2*pi*I/l))
             if 1 == s2: 
-                table = [2*s*(z**p).real()/w for p in range(l)]
+                table0 = [2*s*(z**p).real()/w for p in range(l)]
             else:
-                table = [s*(z**p-z**(-p))/w for p in range(l)]
-    if debug > 0: print len(table), [table[i] for i in range(l)]
+                table0 = [s*(z**p-z**(-p))/w for p in range(l)]
+    if debug > 0 and q>0: print len(table), [table[i] for i in range(l)]
+    if debug > 0 and q==0: print len(table0), table0
     if debug > 0: print '%f: init, table'%(walltime(t))
 
     if debug > 0: t = walltime()
@@ -411,15 +412,20 @@ cpdef cython_invariants_matrices(FQM, K = QQbar, proof = True, debug=0, return_H
     #cdef long[:,:] HH = A
     cdef H = Matrix(K,n,ni)
     cdef long p = 0
+    cdef tp = 0
     for j in xrange(ni):
         #print j, f
         for i in xrange(j, n):
             p = BB[j][i-j]
-            H[i,j] = table[p]*Mlf[j]
+            if q==0:
+                tp = table0[p]
+            else:
+                tp = table[p]
+            H[i,j] = tp*Mlf[j]
             if i==j:
                 H[j,j] += 2
             elif i<ni and i>j:
-                H[j,i] = table[p]*Mlf[i]
+                H[j,i] = tp*Mlf[i]
             #if debug > 1: print "i={0}, j={1}, H[i,j] = {2}, p = {3}".format(i,j,HH[i,j],p)
     if debug > 0: print '%f: init of H'%(walltime(t)); t = walltime()
     #if debug > 0: print A
@@ -474,7 +480,7 @@ cpdef reconstruction(x):
 cpdef cython_invariants(FQM, use_reduction = True, proof = False, checks = False, debug=0, K = None):
     if use_reduction and K == None:
         found = False
-        p = FQM.level()*10
+        p = FQM.level()
         while not found:
             if p % lcm(4,FQM.level()) == 1:
                 found = True
