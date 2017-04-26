@@ -22,11 +22,11 @@ AUTHORS:
 from sage.all import SageObject, Integer, RR, is_odd, next_prime, floor, \
                      RealField, ZZ, ceil, log, ComplexField, real, sqrt, exp, round
 #import sys
-from .weight_one_half import *
+#from .weight_one_half import *
 
 try:
     from psage.modules.finite_quadratic_module import FiniteQuadraticModule
-    from psage.modules.weil_invariants import cython_invariants_dim
+#    from psage.modules.weil_invariants import cython_invariants_dim
 except ImportError:
     raise
 
@@ -104,8 +104,6 @@ class VectorValuedModularForms(SageObject):
             m = self._M.order()
             
         self._m = m
-        d = Integer(1)/Integer(2)*(m+n2) # |discriminant group/{+/-1}|
-        self._d = d
         self._alpha3 = None
         self._alpha4 = None
 
@@ -121,8 +119,10 @@ class VectorValuedModularForms(SageObject):
         s = self._signature
         if not (2*k in ZZ):
             raise ValueError("k has to be integral or half-integral")
-        if (2*k+s)%4 != 0 and not ignore:
-            raise NotImplementedError("2k has to be congruent to -signature mod 4")
+        if (2*k+s)%2 != 0 and not ignore:
+            raise NotImplementedError("2k has to be congruent to signature mod 2")
+        m = self._m
+        n2 = self._n2
         if self._v2.has_key(0):
             v2 = self._v2[0]
         else:
@@ -137,13 +137,21 @@ class VectorValuedModularForms(SageObject):
         else:
             vals = self._M.values()
             M = self._M
+
+        if (2*k+s)%4 == 0:
+            d = Integer(1)/Integer(2)*(m+n2) # |dimension of the Weil representation on even functions|
+            self._d = d
+            self._alpha4 = 1/Integer(2)*(vals[0]+v2) # the codimension of SkL in MkL
+        else:
+            d = Integer(1)/Integer(2)*(m-n2) # |dimension of the Weil representation on odd functions|
+            self._d = d
+            self._alpha4 = 1/Integer(2)*(vals[0]-v2) # the codimension of SkL in MkL
             
         prec = ceil(max(log(M.order(),2),52)+1)+17
         #print prec
         RR = RealField(prec)
         CC = ComplexField(prec)
-        d = self._d
-        m = self._m
+        
         if debug > 0: print d,m
             
         if self._alpha3 == None:
@@ -160,7 +168,6 @@ class VectorValuedModularForms(SageObject):
                 self._alpha3 += sum([(1-a)*mm for a,mm in vals.iteritems() if a != 0])
                 #print self._alpha3
                 self._alpha3 = self._alpha3 / Integer(2)
-                self._alpha4 = 1/Integer(2)*(vals[0]+v2) # the codimension of SkL in MkL
         alpha3 = self._alpha3
         alpha4 = self._alpha4
         if debug > 0: print alpha3, alpha4
@@ -188,7 +195,7 @@ class VectorValuedModularForms(SageObject):
             raise RuntimeError("Negative dimension (= {0}, {1})!".format(dim, dimr))
         return dim
 
-    def dimension_cusp_forms(self, k, ignore=False, no_inv = False, test_positive = False, proof = False, debug=1):
+    def dimension_cusp_forms(self, k, ignore=False, no_inv = False, test_positive = False, proof = False, debug=0):
         if debug>0:
             if self._g is not None:
                 print "Computing dimension for {}".format(self._g)
