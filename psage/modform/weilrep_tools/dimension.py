@@ -20,15 +20,17 @@ AUTHORS:
 
 #from psage.modules import *
 from sage.all import SageObject, Integer, RR, is_odd, next_prime, floor, \
-                     RealField, ZZ, ceil, log, ComplexField, real, sqrt, exp, round
+                     RealField, ZZ, ceil, log, ComplexField, real, sqrt, exp, round, imag
 #import sys
 #from .weight_one_half import *
 
-try:
-    from psage.modules.finite_quadratic_module import FiniteQuadraticModule
+#try:
+#    from psage.modules.finite_quadratic_module import FiniteQuadraticModule
 #    from psage.modules.weil_invariants import cython_invariants_dim
-except ImportError:
-    raise
+#except ImportError:
+#    raise
+
+from finite_quadratic_module import FiniteQuadraticModule
 
 def BB(x):
     RF=RealField(100)
@@ -152,8 +154,9 @@ class VectorValuedModularForms(SageObject):
         RR = RealField(prec)
         CC = ComplexField(prec)
         
-        if debug > 0: print d,m
-            
+        if debug > 0: print "d, m = {0}, {1}".format(d,m)
+        eps = exp( 2 * CC.pi() * CC(0,1) * (s + 2*k) / Integer(4) )
+        eps = round(real(eps))    
         if self._alpha3 == None:
             if self._aniso_formula:
                 self._alpha4 = 1
@@ -175,14 +178,19 @@ class VectorValuedModularForms(SageObject):
         g1=CC(g1[0]*g1[1])
         #print g1
         g2=M.char_invariant(2)
-        g2=RR(real(g2[0]*g2[1]))
+        g2=CC(g2[0]*g2[1])
         if debug > 0: print g2, g2.parent()
         g3=M.char_invariant(-3)
         g3=CC(g3[0]*g3[1])
+        if debug > 0: print "eps = {0}".format(eps)
         if debug > 0: print RR(d) / RR(4), sqrt(RR(m)) / RR(4), CC(exp(2 * CC.pi() * CC(0,1) * (2 * k + s) / Integer(8)))
-        alpha1 = RR(d) / RR(4) - (sqrt(RR(m)) / RR(4)  * CC(exp(2 * CC.pi() * CC(0,1) * (2 * k + s) / Integer(8))) * g2)
+        if eps == 1:
+            g2_2 = real(g2)
+        else:
+            g2_2 = imag(g2)*CC(0,1)
+        alpha1 = RR(d) / RR(4) - sqrt(RR(m)) / RR(4)  * CC(exp(2 * CC.pi() * CC(0,1) * (2 * k + s) / Integer(8)) * g2_2)
         if debug > 0: print alpha1
-        alpha2 = RR(d) / RR(3) + sqrt(RR(m)) / (3 * sqrt(RR(3))) * real(exp(CC(2 * CC.pi() * CC(0,1) * (4 * k + 3 * s - 10) / 24)) * (g1+g3))
+        alpha2 = RR(d) / RR(3) + sqrt(RR(m)) / (3 * sqrt(RR(3))) * real(exp(CC(2 * CC.pi() * CC(0,1) * (4 * k + 3 * s - 10) / 24)) * (g1 + eps*g3))
         if debug > 0: print alpha1, alpha2, g1, g2, g3, d, k, s
         dim = real(d + (d * k / Integer(12)) - alpha1 - alpha2 - alpha3)
         if debug > 0:
