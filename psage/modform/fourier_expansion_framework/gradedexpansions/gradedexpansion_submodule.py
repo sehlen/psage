@@ -36,8 +36,8 @@ from sage.matrix.constructor import matrix
 from sage.misc.cachefunc import cached_method
 from sage.misc.flatten import flatten
 from sage.misc.latex import latex
-from sage.misc.misc import mul
-from sage.misc.misc import union
+from sage.misc.all import mul
+from sage.misc.all import union
 from sage.modules.free_module import FreeModule, FreeModule_generic, \
       FreeModule_ambient_pid, FreeModule_submodule_pid 
 from sage.modules.free_module import is_FreeModule
@@ -47,7 +47,7 @@ from sage.arith.all import random_prime
 from sage.rings.integer_ring import ZZ
 from sage.rings.number_field.order import Order as NumberFieldOrder
 from sage.rings.padics.factory import Qp
-from sage.rings.principal_ideal_domain import PrincipalIdealDomain
+from sage.rings.ring import PrincipalIdealDomain
 from sage.rings.rational_field import QQ
 from sage.rings.ring import Ring
 from sage.structure.element import Element
@@ -588,7 +588,7 @@ class GradedExpansionSubmodule_abstract ( ExpansionModule_abstract ) :
             sage: sm._graded_expansion_submodule_to_graded_ambient_(2*sm.0 + 3*sm.1)
             Graded expansion 2*a + 3*b
         """
-        return sum( map(mul, self.coordinates(x), self._basis_in_graded_ambient()) )
+        return sum( map(prod, self.coordinates(x), self._basis_in_graded_ambient()) )
 
     def _repr_(self) :
         r"""

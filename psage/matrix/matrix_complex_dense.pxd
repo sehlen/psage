@@ -13,6 +13,9 @@ from sage.matrix.matrix_complex_double_dense cimport Matrix_complex_double_dense
 cdef class Matrix_complex_dense(Matrix_dense):
 
     #cdef mpc_t tmp
+    cpdef _add_(self, other)
+    cpdef _sub_(self, other)
+    
     cdef mpc_t *_entries
     cdef int _entries_are_allocated
     cdef mpc_t ** _matrix
@@ -36,6 +39,8 @@ cdef class Matrix_complex_dense(Matrix_dense):
     cdef int _truncate
     cdef int _double_matrix_is_set
     cdef Matrix_complex_double_dense _double_matrix
+    #    cpdef Matrix_complex_dense zero_matrix()
+    #cpdef Matrix_complex_dense identity_matrix()
     #cdef MPComplexField_class _base_ring
     #cdef object _base_ring
     cdef int _cmp_c_impl(self, Element right) except -2
@@ -62,7 +67,7 @@ cdef class Matrix_complex_dense(Matrix_dense):
     cpdef delete_row(self,int n,int clear=?)
 
     cpdef  set_zero_elements(self,double tol=?)
-    cpdef int numerical_rank(self)
+    cpdef int numerical_rank(self,double tol=?)
     cpdef _balance(self)
     cpdef int is_hessenberg(self,double maxerr=?,int show_err=?)
 

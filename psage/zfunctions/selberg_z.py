@@ -944,9 +944,11 @@ class TransferOperator(Parent):
         qr=RF(q)
         llambda=mp2*(RF.pi()/qr).cos()
         dim=0
+        self._kappa = 0
         if is_even(q):
             #R=mp1
             h=ZZ(QQ(q-2)/QQ(2))
+            self._kappa = h
             dim=ZZ(2*h)
             #            print "dim=",dim
             NIJ=matrix(ZZ,dim)
@@ -964,12 +966,14 @@ class TransferOperator(Parent):
         elif q==3:
             R=(RF(5).sqrt()-mp1)/mp2
             dim=ZZ(2)
+            self._kappa = 1
             h=ZZ(0)
             NIJ=matrix([[3,-2],[2,-3]])
         elif q>=5:
             #R=llambda/mp2-mp1
             #R+=mp1/mp2*((mp2-llambda**2)+mp4).sqrt()
             h=ZZ(QQ(q-3)/QQ(2))
+            self._kapps = 2*h+1
             dim=ZZ(4*h+2)
             NIJ=matrix(ZZ,dim)	
             NIJ[0,2*h-1]=2
@@ -1251,17 +1255,19 @@ class TransferOperator(Parent):
                 intervals[2*i]=[x0,llambdaq_4]
                 if verbose>0:
                     print "intervals[{0}]={1}".format(2*i,intervals[2*i])
-
+            ## THen use the reflection
             for i in range(1,self._h+1):
                 x1 = intervals[2*i][0]; x2 = intervals[2*i][1]
                 if verbose>1:
                     print "x1,x2[{0}]={1}".format(2*i,(x1,x2))
-                intervals[2*i+dim_2]=[-x2,-x1]
+                    print "index=",2*(dim_2-i)+1
+                intervals[1+2*(dim_2-i)]=[-x2,-x1]
             for i in range(self._h+1):
                 x1 = intervals[2*i+1][0]; x2 = intervals[2*i+1][1]
                 if verbose>1:
                     print "x1,x2[{0}]={1}".format(2*i+1,(x1,x2))
-                intervals[2*i+1+dim_2]=[-x2,-x1]
+                    print "index=",2*(dim_2)-(2*i+1)+1
+                intervals[1+2*dim_2 - (2*i+1)]=[-x2,-x1]
 
         else:
             raise NotImplementedError
@@ -1320,10 +1326,10 @@ class TransferOperator(Parent):
             print "r=",r1s
         for i in range(d):        
             for j in range(d):
-                n = Nij[i,j]
+                n = self._Nij[i,j]
                 aa = centers[i] - r1s[i]
                 bb = centers[i] + r1s[i]
-                phia,phib=image_of_interval(T,aa,bb,n)
+                phia,phib=image_of_interval(self._T,aa,bb,n)
                 if min(phia,phib) < mina[j]:
                     mina[j] = min(phia,phib)
                 if max(phia,phib) > maxb[j]:
@@ -1402,7 +1408,7 @@ class TransferOperator(Parent):
         return True
 
     
-    def cont_frac_to_pt(self,cf=[],prec=0,verbose=0):
+    def cont_frac_to_pt(self,cf=[],prec=0,format='float',verbose=0):
 
         r"""
         Compute the point corresponding to a nearest lambda continued fraction.
@@ -1422,14 +1428,20 @@ class TransferOperator(Parent):
             prec = self._prec 
         RF = RealField(prec)
         frac_part = cf[1:]; n = len(frac_part)
-        x = RF(0)
+        if format == 'float':
+            x = RF(0)
+        else:
+            x = 0
         verbose = max(verbose,self._verbose)
         for j in range(n):
             x1 = self.STn(x,frac_part[n-j-1])
             if verbose>1:
                 print "ST^{0}({1})={2}".format(frac_part[n-j-1],x,x1)
             x = x1
-        x = x+self.lambdaq_r(prec)*RF(cf[0])
+        if format == 'float':
+            x = x+self.lambdaq_r(prec)*RF(cf[0])
+        else:
+            x = x + self.lambdaq*cf[0]
         return x
 
     def nearest_lambda_code(self,x,N=0):
@@ -1731,11 +1743,11 @@ class TransferOperator(Parent):
         if alphas_in<>{}:
             alphas={}
             for j in alphas_in.keys():
-                alphas[j-1]=RF(alphas_in[j])
+                alphas[j]=RF(alphas_in[j])
         if rhos_in<>{}:
             rhos={}
             for j in rhos_in.keys():
-                rhos[j-1]=RF(rhos_in[j])            
+                rhos[j]=RF(rhos_in[j])            
         ## Checking that the order is ok, i.e. that the 
         if verbose>0:
             print "alphas=",alphas
@@ -2194,3 +2206,37 @@ def my_alg_sort(x,y):
     else:
         yy = y.real()
     return cmp(xx,yy)
+
+def Hausdorff_distance(l1,l2):
+    r"""
+    Calculates the Husdorff distance between the two lists l1 and l2.
+    """
+    d1max = 0; d2max=0
+    for x in l1:
+        t1 = min([ abs(x-y) for y in l2])
+        if t1 > d1max:
+            d1max = t1
+    for x in l2:
+        t2 = min([ abs(x-y) for y in l1])
+        if t2 > d2max:
+            d2max = t2
+    return max(d1max,d2max)
+
+def image_of_interval(T,a,b,n):
+    r"""
+    Returns the tuple (f(a),f(b)) or (f(b),f(a)) depending on if f(a) <= f(b) or f(b)<f(a)
+    where f (z) = -1/(z + n*lambda)
+    and lambda is given by T.
+    We check that l-n*lambda is not in the interval. 
+    """
+    if a > b:
+        a,b = b,a  ## swap 
+    RF = a.base_ring()
+    nn = RF(n*T._lambda)
+    if a <= n and n <= b:
+        raise ValueError,"Apply to region not containing: {0}".format(n*T._lambda)
+    fa = -(a+nn)**-1
+    fb = -(b+nn)**-1
+    if fb < fa:
+        fa,fb = fb,fa
+    return fa,fb

@@ -84,6 +84,7 @@ cdef int compute_V_cplx_dp_sym_par(double complex **V,
                            int cuspidal,
                            int verbose,
                            int ncpus=1,
+                           int is_exceptional=0,
                            int is_trivial=0):
 
 
@@ -111,6 +112,8 @@ cdef int compute_V_cplx_dp_sym_par(double complex **V,
     cdef double complex ckbes,ctmpV,iargm,twopii,ctmp
     if not cuspidal in [0,1]:
         raise ValueError," parameter cuspidal must be 0 or 1"
+    if is_exceptional == 1:
+        raise ValueError,"PArallel algorithm not implemented for exceptional eigenvalues yet!"
     cdef int **endpts
     cdef int* cusp_offsets=NULL
     cdef double **nvec=NULL
@@ -364,6 +367,7 @@ cdef int compute_V_cplx_dp_par(double complex **V,
                            int cuspidal,
                            int verbose,
                            int ncpus=1,
+                           int is_exceptional=0,
                            int is_trivial=0):
 
 
