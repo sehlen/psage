@@ -208,8 +208,9 @@ cdef class Vector_complex_dense(FreeModuleElement):
     def __reduce__(self):
         return (unpickle_v1, (self._parent, self.list(), self._degree, self._is_mutable))
 
-    cpdef ModuleElement _add_(self, ModuleElement right):
-        cdef Vector_complex_dense z, r
+    cpdef _add_(self, right):
+        cdef Vector_complex_dense z
+        cdef Vector_complex_dense r
         cdef MPComplexNumber ztmp
         cdef Py_ssize_t i
         if isinstance(right,type(self)):
@@ -230,11 +231,12 @@ cdef class Vector_complex_dense(FreeModuleElement):
         return z
         
 
-    cpdef ModuleElement _sub_(self, ModuleElement right):
-        cdef Vector_complex_dense z, r
+    cpdef _sub_(self, right):
+        cdef Vector_complex_dense z
+        cdef Vector_complex_dense r 
         cdef MPComplexNumber ztmp
         cdef Py_ssize_t i
-        r = <Vector_complex_dense>right
+        #r = <Vector_complex_dense>right
         #print "in sub!"
         if isinstance(right,type(self)):
             r = right
@@ -329,7 +331,7 @@ cdef class Vector_complex_dense(FreeModuleElement):
             return Matrix_complex_dense._vector_times_matrix_(right,self)
          return self._lmul_(right)
         
-    cpdef ModuleElement _rmul_(self, RingElement left):
+    cpdef _rmul_(self, Element left):
         cdef Vector_complex_dense z
         cdef Py_ssize_t i
         cdef MPComplexNumber a
@@ -347,7 +349,7 @@ cdef class Vector_complex_dense(FreeModuleElement):
         return z
 
 
-    cpdef ModuleElement _lmul_(self, RingElement right):
+    cpdef _lmul_(self, Element right):
         cdef Vector_complex_dense z
         cdef MPComplexNumber a
         # we can convert almost anything to MPComplexNumber

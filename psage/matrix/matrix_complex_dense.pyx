@@ -19,6 +19,7 @@ from psage.rings.mp_cimports cimport *
 
 from sage.rings.real_mpfr import RealField as RFF
 from sage.matrix.matrix cimport Matrix
+from sage.matrix.matrix_dense cimport Matrix_dense
 from sage.rings.complex_mpc import MPComplexField
 
 from psage.modules.vector_complex_dense cimport Vector_complex_dense
@@ -39,11 +40,11 @@ from sage.rings.complex_double import CDF
 from sage.arith.all import gcd,valuation
 from sage.matrix.matrix import is_Matrix
 from sage.structure.element import is_Vector
-import sage.ext.multi_modular
 from sage.matrix.matrix2 import cmp_pivots, decomp_seq
 from sage.matrix.matrix0 import Matrix as Matrix_base
 
-from sage.misc.misc import verbose, get_verbose, prod
+from sage.misc.misc import verbose, get_verbose
+from sage.misc.all import prod
 
 ## #########################################################
 
@@ -95,14 +96,27 @@ cdef class Matrix_complex_dense(Matrix_dense):
         if self._verbose>0:
             print "in cinit"
         if self._verbose>1:
-            print "entries=",entries
+            print "entries=",entries,parent
         cdef double x
-        if not isinstance(parent,sage.matrix.matrix_space.MatrixSpace):
+#        if not isinstance(parent,sage.matrix.matrix_space.MatrixSpace):
+        if not hasattr(parent,'base_ring') or not hasattr(parent,'nrows'):
             if verbose>0:
                 print "no matrix space!"
             raise ValueError,"Need MatrixSpace as parent!" 
 
-        Matrix_dense.__init__(self, parent) #,entries=entries) #coerce=coerce,copy=copy)
+        #Matrix_dense.__init__(self, parent) #,None,copy,coerce) #,entries=entries) #coerce=coerce,copy=copy)
+        if self._verbose>0:
+            print "before base ring"
+        self._parent = parent
+        if self._verbose>0:
+            print "before base ring"
+        self._base_ring = parent.base_ring()
+        if self._verbose>0:
+            print "after base ring"
+        self._nrows = parent.nrows()
+        self._ncols = parent.ncols()
+        if self._verbose>0:
+            print "matrix dense inited!"
         cdef Py_ssize_t i, k
         self._entries = <mpc_t *> sage_malloc(sizeof(mpc_t)*(self._nrows * self._ncols))
         if self._verbose>0:
@@ -252,6 +266,38 @@ cdef class Matrix_complex_dense(Matrix_dense):
         self._base_for_str_rep=base
         return self._base_for_str_rep
 
+    def zero_matrix(self):
+        r"""
+        Return the zero matrix in this space.
+        """
+        assert self._is_square
+        cdef Matrix_complex_dense res
+        res=Matrix_complex_dense.__new__(Matrix_complex_dense,self._parent,None,None,None)
+        cdef int n,i,j,m
+        n = self._nrows
+        m = self._ncols
+        for i from 0 <= i < n:
+            for j from 0 <= j < m:
+                mpc_set_ui(res._matrix[i][j],0,self._rnd)
+        return res
+    def identity_matrix(self):
+        r"""
+        Return the identity matrix in this space.
+        """
+        assert self._is_square
+        cdef Matrix_complex_dense res
+        res=Matrix_complex_dense.__new__(Matrix_complex_dense,self._parent,None,None,None)
+        cdef int n,i,j,m
+        n = self._nrows
+        m = self._ncols
+        if n != m:
+            raise ValueError,"Only square matrices can have identity!"
+        for i from 0 <= i < n:
+            for j from 0 <= j < n:
+                mpc_set_ui(res._matrix[i][j],0,self._rnd)
+            mpc_set_ui(res._matrix[i][i],1,self._rnd)
+        return res
+
 
     cpdef set_zero_elements(self,double tol=0):
         r"""
@@ -282,22 +328,41 @@ cdef class Matrix_complex_dense(Matrix_dense):
 #    cpdef eps(self):
 #        return self._eps
     
-    cpdef int numerical_rank(self):
-        Q,R=self.qr_decomposition()
+    cpdef int numerical_rank(self,double tol=0):
+        r"""
+        Find the numerical rank of self up to given tolerance.
+        We find it through computing the Q,R decoposition and observe that 
+        the rank of R is the same as the ran of self. 
+
+        """
         cdef int i,j,rank,row_is_nonzero
-        cdef mpfr_t tmp
-        mpfr_init2(tmp,self._prec)
-        rank=0
-        for i from 0<=i<self._nrows:
-            row_is_nonzero=0
-            for j from i<=j<self._nrows:
-                mpc_abs(tmp,self._matrix[i][j],self._rnd_re)
-                if mpfr_cmp(tmp,self._eps.value)>0:
-                    row_is_nonzero=1
-                    break
-            if row_is_nonzero:
+        Q,R=self.qr_decomposition()
+        rank = 0
+        if tol==0:
+            tol=self._eps
+        for i in range(0,R.nrows()):
+            if abs(R[i,i])>tol:
                 rank+=1
         return rank
+        #cdef mpfr_t tmp
+        #cdef mpfr_t mptol
+        #mpfr_init2(tmp,self._prec)
+        #mpfr_init2(mptol,self._prec)
+        #rank=0
+        #if tol>0:
+        #    mpfr_set_d(mptol,tol,self._rnd_re)
+        #else:
+        #    mpfr_set(mptol,self._eps.value,self._rnd_re)
+        #for i from 0<=i<self._nrows:
+        #    row_is_nonzero=0
+        #    for j from i<=j<self._nrows:
+        #        mpc_abs(tmp,R._matrix[i][j],self._rnd_re)
+        #        if mpfr_cmp(tmp,mptol)>0:
+        #            row_is_nonzero=1
+        #            break
+        #    if row_is_nonzero:
+        #        rank+=1
+        #return rank
     
     cpdef Vector_complex_dense column(self,int n):
         r""" return column nr. n of self.
@@ -502,7 +567,9 @@ cdef class Matrix_complex_dense(Matrix_dense):
         cdef Py_ssize_t i, j, len_so_far, m, n
         cdef mpfr_t x,y
         cdef char *a
-        cdef char *s, *t, *tmp
+        cdef char *s
+        cdef char *t
+        cdef char *tmp
         #print "exporting as string!"
         cdef int reqdigits
         cdef int p,k
@@ -689,7 +756,7 @@ cdef class Matrix_complex_dense(Matrix_dense):
                 raise NotImplementedError,"Can not compare Matrix_complex_dense with {0}!".format(type(right))
             #return 0
         else:
-            return self._richcmp(right, op)
+            return self._richcmp_(right, op)
         
     # cpdef _eq_(self, right):
 
@@ -716,7 +783,7 @@ cdef class Matrix_complex_dense(Matrix_dense):
     #   * _dict -- sparse dictionary of underlying elements (need not be a copy)
     ########################################################################
 
-    cpdef ModuleElement _lmul_(self, RingElement right):
+    cpdef _lmul_(self, Element right):
         """
         EXAMPLES::
         
@@ -735,7 +802,7 @@ cdef class Matrix_complex_dense(Matrix_dense):
         return M
 
     
-    cpdef ModuleElement _rmul_(self, RingElement left):
+    cpdef _rmul_(self, Element left):
         """
         EXAMPLES::
         
@@ -753,7 +820,7 @@ cdef class Matrix_complex_dense(Matrix_dense):
             mpc_mul(M._entries[i], self._entries[i], _x.value,self._rnd)
         return M
     
-    cpdef ModuleElement _add_(self, ModuleElement right):
+    cpdef ModuleElement _add_(self, _right):
         """
         Add two dense matrices over MPC.
         
@@ -770,6 +837,7 @@ cdef class Matrix_complex_dense(Matrix_dense):
         """
         cdef Py_ssize_t i, j
         cdef Matrix_complex_dense M
+        cdef Matrix_complex_dense right = _right
         M = Matrix_complex_dense.__new__(Matrix_complex_dense, self._parent, None, None, None)
 
         cdef mpc_t *M_row
@@ -788,7 +856,7 @@ cdef class Matrix_complex_dense(Matrix_dense):
         sig_off()
         return M
         
-    cpdef ModuleElement _sub_(self, ModuleElement right):
+    cpdef ModuleElement _sub_(self, _right):
         """
         Subtract two dense matrices over MPC.
         
@@ -803,6 +871,7 @@ cdef class Matrix_complex_dense(Matrix_dense):
         """
         cdef Py_ssize_t i, j
         cdef Matrix_complex_dense M
+        cdef Matrix_complex_dense right = _right
         cdef MPComplexNumber z
         M = Matrix_complex_dense.__new__(Matrix_complex_dense, self._parent, None, None, None)
         cdef mpc_t *M_row
@@ -831,7 +900,8 @@ cdef class Matrix_complex_dense(Matrix_dense):
         return M
 
     cdef int _cmp_c_impl(self, Element right) except -2:
-        cdef mpc_t *a, *b
+        cdef mpc_t *a
+        cdef mpc_t *b
         cdef Py_ssize_t i, j
         cdef int k
         for i from 0 <= i < self._nrows:
@@ -1068,7 +1138,8 @@ cdef class Matrix_complex_dense(Matrix_dense):
         return res
 
     cpdef transpose(self):
-        res = Matrix_complex_dense(self.parent(),0)
+        MS=MatrixSpace(self.base_ring(),self.ncols(),self.nrows())
+        res = Matrix_complex_dense(MS,0)
         self._transpose(res)
         return res
     
@@ -1080,12 +1151,12 @@ cdef class Matrix_complex_dense(Matrix_dense):
         #res = Matrix_complex_dense.__new__(Matrix_complex_dense, self._parent, None, None, None)
         #print "transponerar!"
         for j from 0<=j<=self._nrows-1:
-            for k from 0<=k<j:
+            for k from 0<=k<self._ncols-1:
                 #mpc_set(tmp,self._matrix[k][j],self._rnd)
                 #print "tmp[",k,j,"]=",print_mpc(tmp)
                 mpc_set(res._matrix[k][j],self._matrix[j][k],self._rnd)
-                mpc_set(res._matrix[j][k],self._matrix[k][j],self._rnd)
-            mpc_set(res._matrix[j][j],self._matrix[j][j],self._rnd)
+#                mpc_set(res._matrix[j][k],self._matrix[k][j],self._rnd)
+#            mpc_set(res._matrix[j][j],self._matrix[j][j],self._rnd)
         mpc_clear(tmp)
         return res
 
@@ -1292,7 +1363,8 @@ cdef class Matrix_complex_dense(Matrix_dense):
         cdef int i,j,n,m
         cdef QR_set q = init_QR(self._prec)
         cdef Matrix_complex_dense Q
-        cdef mpc_t t,s,sc,tt[3]
+        cdef mpc_t t,s,sc
+        cdef mpc_t tt[3]
         cdef mpfr_t x,c
         m = self._nrows
         n = self._ncols
@@ -1551,7 +1623,8 @@ cdef class Matrix_complex_dense(Matrix_dense):
         assert len(b)==n
         if num_threads>1: raise NotImplementedError,"Parallel linear algebra is not implemented!"
         cdef mpc_t s,sc
-        cdef mpc_t t[3],w[2]
+        cdef mpc_t t[3]
+        cdef mpc_t w[2]
         cdef mpfr_t c,x
         cdef mpc_t **A
         cdef mpc_t *v
@@ -1693,10 +1766,12 @@ cdef class Matrix_complex_dense(Matrix_dense):
         assert self._is_square
         cdef Matrix_complex_dense res
         res = Matrix_complex_dense.__new__(Matrix_complex_dense,self._parent,None,None,None)
-        cdef mpc_t **A, **BB
+        cdef mpc_t **A
+        cdef mpc_t **BB
         cdef int n = self._nrows
         cdef mpc_t s,sc
-        cdef mpc_t t[3],w[2]
+        cdef mpc_t t[3]
+        cdef mpc_t w[2]
         cdef mpfr_t c,x
         assert B._nrows == n
         #print "B=",B
@@ -2239,7 +2314,7 @@ cdef class Matrix_complex_dense(Matrix_dense):
     def to_numpy(self):
         return self.to_double().numpy()
         
-
+    
 ####  Helper functions
         
 #from sage.rings.complex_mpc cimport MPComplexField_class

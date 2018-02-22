@@ -25,11 +25,13 @@ AUTHOR:
  CONVENTION:
  internal functions, beginning with underscore might modify input variables, while other functions does (should) not.
 
+NOTE: We are (now) using a group *homomorphism* between permutations and subgroups
+  in particular s(S)s(R)=s(T)   where R=ST and S^2=1 in PSL(2,Z)
 
 """
-include "cysignals/signals.pxi"  
+include "cysignals/signals.pxi"
+include "sage/ext/cdefs.pxi"
 include "sage/ext/stdsage.pxi"  
-from sage.ext.memory cimport check_allocarray
 
 from psage.rings.mp_cimports cimport *
 from sage.rings.complex_mpc cimport * #MPComplexNumber
@@ -50,6 +52,9 @@ from sage.all import RR,ZZ,SL2Z,matrix
 from copy import deepcopy
 from sage.groups.perm_gps.permgroup_element import PermutationGroupElement
 from sage.functions.all import ceil as pceil
+
+from sage.libs.flint.fmpz cimport *
+from sage.libs.flint.fmpz_mat cimport *
 
 from psage.groups.permutation_alg cimport MyPermutation
 #from sage.rings.rational.Rational import floor as qq_floor
@@ -86,6 +91,8 @@ cdef class SL2Z_elt(GL2Z_elt):
     Subclass for elements of SL(2,Z)
     """
     def __init__(self,a=1,b=0,c=0,d=1):
+        if isinstance(a,(list,tuple)):
+            a,b,c,d = a
         assert a*d-b*c == 1
     
 cdef class GL2Z_elt(object):
@@ -94,6 +101,9 @@ cdef class GL2Z_elt(object):
     """
     def __cinit__(self,a=1,b=0,c=0,d=1):
         if not isinstance(a,int):
+            if isinstance(a,(list,tuple)):
+                if len(a)==4:
+                    a,b,c,d = a
             try:
                 a = int(a); b=int(b); c=int(c); d=int(d)
             except TypeError: ## If a can not be converted to int it is probably a matrix               
@@ -317,9 +327,17 @@ cdef class GL2Z_elt(object):
         """
         cdef GL2Z_elt res
         cdef int* resent=NULL
+        cdef mpz_t * entries = <mpz_t *> check_allocarray(4,sizeof(mpz_t))
+        cdef int i
+        for i in range(4):
+            mpz_init(entries[i])
+        fmpz_get_mpz(entries[0], fmpz_mat_entry(other._matrix, 0,0))
+        fmpz_get_mpz(entries[1], fmpz_mat_entry(other._matrix, 0,1))
+        fmpz_get_mpz(entries[2], fmpz_mat_entry(other._matrix, 1,0))
+        fmpz_get_mpz(entries[3], fmpz_mat_entry(other._matrix, 1,1))        
         resent=<int*>check_allocarray(4,sizeof(int))
         if resent==NULL: raise MemoryError
-        self._mul_c_mpz(other._entries,resent,inv)
+        self._mul_c_mpz(entries,resent,inv)
         if resent[0]*resent[3]-resent[2]*resent[1] == 1:
             res=SL2Z_elt(resent[0],resent[1],resent[2],resent[3])
         else:
@@ -1186,10 +1204,10 @@ cdef void _pullback_to_Gamma0N_dp(int*** reps ,int nreps, int N,double *x,double
         print "nreps=",nreps
     for j from 0<=j<nreps:
         if verbose>2:
-            print "reps[",j,",00=",reps[j][0][0]
-            print "reps[",j,",01=",reps[j][0][1]
-            print "reps[",j,",10=",reps[j][1][0]
-            print "reps[",j,",11=",reps[j][1][1]        
+            print "reps[",j,"],00=",reps[j][0][0]
+            print "reps[",j,"],01=",reps[j][0][1]
+            print "reps[",j,"],10=",reps[j][1][0]
+            print "reps[",j,"],11=",reps[j][1][1]        
         V[0][0]=reps[j][0][0]
         V[0][1]=reps[j][0][1]
         V[1][0]=reps[j][1][0]
@@ -1198,6 +1216,8 @@ cdef void _pullback_to_Gamma0N_dp(int*** reps ,int nreps, int N,double *x,double
         # Check if A in Gamma_0(N)*V_j^-1
         # <=> A*V_j  in Gamma_0(N)
         # and we then apply VjA to the point
+        if verbose>2:
+            print "c1[{0}]={1}".format(j,c1)
         if c1 % N == 0:
             a1 = V[0][0]*a[0]+V[0][1]*c[0]
             b1 = V[0][0]*b[0]+V[0][1]*d[0]
@@ -1206,7 +1226,7 @@ cdef void _pullback_to_Gamma0N_dp(int*** reps ,int nreps, int N,double *x,double
             a[0]=a1; b[0]=b1; c[0]=c1; d[0]=d1
             #_apply_sl2z_map_mpc(xout,yout,xin,yin,a,b,c,d)
             if verbose>2:
-                print "Coset rep nr. ",j,"=",a[0],b[0],c[0],d[0]
+                print "Coset rep nr. ",j,"=", a[0],b[0],c[0],d[0]
                 #_apply_sl2z_map_dp(x,y,a,b,c,d)
             _apply_sl2z_map_dp(x,y,V[0][0],V[0][1],V[1][0],V[1][1])
             #reps[0][0][0]=a; reps[0][0][1]=b; reps[0][1][0]=c; reps[0][1][1]=d; 
@@ -2030,13 +2050,13 @@ cpdef get_coset_reps_from_perms(MyPermutation pS,MyPermutation pR,MyPermutation 
         if verbose>0:
             print "in this step:"
             for j in coset_reps.keys():
-                if(coset_reps[j]<>Id):
+                if(coset_reps[j] != Id):
                     print "V(",j,")=",coset_reps[j] 
                 else:
                     print "V(",j,")=Id"
     # By construction none of the coset-reps are in self and h(V_j)=j so they are all independent
     # But to make sure we got all we count the keys
-    if coset_reps.keys() <> range(1,ix+1):
+    if coset_reps.keys() != list(range(1,ix+1)):
         print "ix=",ix
         print "cl=",coset_reps
         raise ValueError,"Problem getting coset reps! Need %s and got %s" %(ix,len(coset_reps))

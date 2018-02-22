@@ -1,4 +1,5 @@
 # cython: profile=False
+# cython: linetrace=False
 # -*- coding=utf-8 -*-
 #*****************************************************************************
 #  Copyright (C) 2010 Fredrik Strömberg <stroemberg@mathematik.tu-darmstadt.de>
@@ -516,6 +517,20 @@ cdef int compute_V_cplx_wt_dp(double complex **V,double R,double Y,double weight
         sage_free(nvec)
 
 
+cpdef my_kbes(double r,double x,double besprec = 1e-14,int pref=0):
+    cdef double kbes
+    if abs(r) < 500:
+        besselk_dp_c(&kbes,r,x,besprec,pref=pref)
+    else:
+        ir = mpmath.mp.mpc(0.5,r)
+        mpx = mpmath.mp.mpf(x)
+        if pref == 1:
+            arg = mpmath.mp.mpf(r)*mpmath.mp.pi*mpmath.mp.mpf(0.5)
+            res = mpmath.mp.besselk(ir,mpx).real*mpmath.mp.exp(arg)
+            kbes = <double> res
+        else:
+            kbes = <double> mpmath.mp.besselk(ir,mpx).real ## probably only going to be 0....
+    return kbes
 @cython.boundscheck(False)
 cdef int compute_V_cplx_dp(double complex **V,double R,double Y,int** Mv,int** Qv,int nc, int cuspidal,int sym_type, int verbose,double *alphas, double *Xm,double ***Xpb,double ***Ypb, double complex ***Cvec,int is_exceptional=0):
     r"""
@@ -649,7 +664,8 @@ cdef int compute_V_cplx_dp(double complex **V,double R,double Y,int** Mv,int** Q
                         besarg=abs(lr)*Ypb[icusp][jcusp][j]
                         if lr<>0.0: 
                             if is_exceptional == 0:
-                                besselk_dp_c(&tmpr,R,besarg,besprec,1)
+                                #besselk_dp_c(&tmpr,R,besarg,besprec,1)
+                                tmpr = my_kbes(R,besarg,besprec,1)
                             else:
                                 tmpr = scipy.special.kv(R,besarg)
                             #print "Ypb=",Ypb[icusp][jcusp][j],type(Ypb[icusp][jcusp][j])
@@ -676,7 +692,8 @@ cdef int compute_V_cplx_dp(double complex **V,double R,double Y,int** Mv,int** Q
                     if verbose>2:
                         if abs(lr)>0:
                             if is_exceptional == 0:
-                                kbes=besselk_dp(R,abs(lr)*Ypb[icusp][jcusp][j],pref=1)
+                                #kbes=besselk_dp(R,abs(lr)*Ypb[icusp][jcusp][j],pref=1)
+                                kbes=my_kbes(R,abs(lr)*Ypb[icusp][jcusp][j],pref=1)
                             else:
                                 besarg = abs(lr)*Ypb[icusp][jcusp][j]
                                 kbes = scipy.special.kv(R,besarg)
@@ -687,7 +704,9 @@ cdef int compute_V_cplx_dp(double complex **V,double R,double Y,int** Mv,int** Q
                                 print "kbes1=",kbes
                     if verbose>3 and abs(l)<=2:
                         print "kbes:=",kbesvec[l][icusp][j]
-                        print "kbes1=",sqrt(Ypb[icusp][jcusp][j])*besselk_dp(R,abs(lr)*Ypb[icusp][jcusp][j],pref=1)
+                        #besselk_dp(R,abs(lr)*Ypb[icusp][jcusp][j],pref=1)
+                        kbes = my_kbes(R,abs(lr)*Ypb[icusp][jcusp][j],pref=1)
+                        print "kbes1=",sqrt(Ypb[icusp][jcusp][j])*kbes
                         print "ef1=",ef1[l][icusp][jcusp][j]
                     for n in range(Ml):
                         if n+Ms==0 and cuspidal==1:
@@ -733,7 +752,8 @@ cdef int compute_V_cplx_dp(double complex **V,double R,double Y,int** Mv,int** Q
                 kbes=<double>1.0
             else:
                 if is_exceptional == 0:
-                    kbes=sqrtY*besselk_dp(R,nrY2pi,pref=1)
+                    kbes=sqrtY*my_kbes(R,nrY2pi,pref=1)
+                    #besselk_dp(R,nrY2pi,pref=1)
                 else:
                     kbes = sqrtY*scipy.special.kv(R,nrY2pi)
             #if nrY2pi==0.0:
@@ -969,7 +989,8 @@ cdef int compute_V_cplx_dp_sym_wt(double complex **V,
                     Mf = Mv[icusp][1]
                     besarg=fabs(lr)*Ypb[icusp][jcusp][j]
                     if lr<>0.0:
-                        besselk_dp_c(&tmpr,R,besarg,besprec,pref=set_pref)
+                        #besselk_dp_c(&tmpr,R,besarg,besprec,pref=set_pref)
+                        tmpr = my_kbes(R,besarg,besprec,pref=set_pref)
                         kbesvec[icusp][l][j]=sqrt(Ypb[icusp][jcusp][j])*tmpr
                     else:
                         kbesvec[icusp][l][j]=<double>1.0
@@ -1057,7 +1078,8 @@ cdef int compute_V_cplx_dp_sym_wt(double complex **V,
             else:
                 #mpIR=mpmath.fp.mpc(0,R)
                 #                kbes=float(mpmath.fp.besselk(mpIR,nrY2pi).real*exp(mpmath.fp.pi*R*0.5))
-                besselk_dp_c(&kbes,R,nrY2pi,besprec,pref=set_pref)
+                #besselk_dp_c(&kbes,R,nrY2pi,besprec,pref=set_pref)
+                kbes = my_kbes(R,nrY2pi,besprec,pref=set_pref)
                 kbes=sqrtY*kbes # besselk_dp(R,nrY2pi,pref=1)
             if ni>N1:
                 raise ArithmeticError,"Index outside!"
@@ -1128,7 +1150,8 @@ cdef int compute_V_cplx_dp_sym(double complex **V,
                            double R,double Y,
                            int nc, int ncols,
                            int cuspidal,
-                           int verbose):
+                           int verbose,
+                           int is_exceptional=0) except -1:
 
 
     r"""
@@ -1299,7 +1322,11 @@ cdef int compute_V_cplx_dp_sym(double complex **V,
                     Mf = Mv[icusp][1]
                     besarg=fabs(lr)*Ypb[icusp][jcusp][j]
                     if lr<>0.0:
-                        besselk_dp_c(&tmpr,R,besarg,besprec,pref=set_pref)
+                        #besselk_dp_c(&tmpr,R,besarg,besprec,pref=set_pref)
+                        if is_exceptional==0:
+                            tmpr = my_kbes(R,besarg,besprec,pref=set_pref)
+                        else:
+                            tmpr = scipy.special.kv(R,besarg)
                         kbesvec[icusp][l][j]=sqrt(Ypb[icusp][jcusp][j])*tmpr
                     else:
                         kbesvec[icusp][l][j]=<double>1.0
@@ -1388,7 +1415,11 @@ cdef int compute_V_cplx_dp_sym(double complex **V,
             else:
                 #mpIR=mpmath.fp.mpc(0,R)
                 #                kbes=float(mpmath.fp.besselk(mpIR,nrY2pi).real*exp(mpmath.fp.pi*R*0.5))
-                besselk_dp_c(&kbes,R,nrY2pi,besprec,pref=set_pref)
+                #besselk_dp_c(&kbes,R,nrY2pi,besprec,pref=set_pref)
+                if is_exceptional==0:
+                    kbes = my_kbes(R,nrY2pi,besprec,pref=set_pref)
+                else:
+                    kbes = scipy.special.kv(R,nrY2pi)
                 kbes=sqrtY*kbes # besselk_dp(R,nrY2pi,pref=1)
             if ni>N1:
                 raise ArithmeticError,"Index outside!"
@@ -1558,7 +1589,7 @@ cdef compute_V_real_dp(double **V,double R,double Y,int Ms,int Mf,int Qs,int Qf,
                     #ypb=Ypb[icusp][jcusp][j]
                     besarg=abs(lr)*Ypb[icusp][jcusp][j]
                     if lr<>0.0:
-                        kbes=sqrt(Ypb[icusp][jcusp][j])*besselk_dp(R,besarg,pref=set_pref)
+                        kbes=sqrt(Ypb[icusp][jcusp][j])*my_kbes(R,besarg,pref=set_pref)
                     else:
                         kbes=<double>1.0
                     ckbes=kbes*ef1[l][icusp][jcusp][j]
@@ -1591,7 +1622,7 @@ cdef compute_V_real_dp(double **V,double R,double Y,int Ms,int Mf,int Qs,int Qf,
                     kbes=<double>1.0
             else:
                 nrY2pi=nr*Y2pi
-                kbes=sqrtY*besselk_dp(R,nrY2pi,pref=set_pref)
+                kbes=sqrtY*my_kbes(R,nrY2pi,pref=set_pref)
             ni=Ml*icusp+n
             V[ni][ni]=V[ni][ni] - kbes
     if ef2<>NULL:
@@ -1855,6 +1886,7 @@ cpdef get_coeff_fast_cplx_dp_sym(S,double R,double Y,int M,int Q,dict Norm={},in
     cdef int cuspidal=1
     cdef int q
     cdef double complex *sqch=NULL
+    cdef int  is_exceptional = S._exceptional
     tmpr = <double>S._group.minimal_height()
     if Y<= 0 or Y >= tmpr:
         Y = 0.5 * tmpr
@@ -2008,12 +2040,16 @@ cpdef get_coeff_fast_cplx_dp_sym(S,double R,double Y,int M,int Q,dict Norm={},in
         compute_V_cplx_dp_sym_par(V1,N1,Xm,Xpb,Ypb,Cvec,
                               cusp_evs,alphas,Mv,Qv,Qfak,
                               symmetric_cusps,
-                              R,Y,nc,ncols,cuspidal,verbose,ncpus)
+                              R,Y,nc,ncols,cuspidal,verbose,ncpus,
+                                  is_exceptional=is_exceptional,
+                                      is_trivial=0)                                      
     else:
         compute_V_cplx_dp_sym(V1,N1,Xm,Xpb,Ypb,Cvec,
                               cusp_evs,alphas,Mv,Qv,Qfak,
                               symmetric_cusps,
-                              R,Y,nc,ncols,cuspidal,verbose)
+                              R,Y,nc,ncols,cuspidal,verbose,
+                              is_exceptional=is_exceptional
+                            )
 #    sig_off()
     cdef Matrix_complex_dense VV
     #Vtmp = load("A.sobj")
@@ -2052,14 +2088,14 @@ cpdef get_coeff_fast_cplx_dp_sym(S,double R,double Y,int M,int Q,dict Norm={},in
         sage_free(Cvec)
     if sqch<>NULL:
         sage_free(sqch)
-    if gr==1:
+    if gr==1 or gr==4:
         CF=MPComplexField(53)
         MS=MatrixSpace(CF,N1,ncols1)
         VV=Matrix_complex_dense(MS,0)
         for n in range(N1):
             for l in range(ncols1):
                 VV[n,l]=V1[n][l]
-        return VV
+        #return VV
     C=<double complex**>sage_malloc(sizeof(double complex*)*(comp_dim))
     if C==NULL:
         raise MemoryError
@@ -2091,19 +2127,37 @@ cpdef get_coeff_fast_cplx_dp_sym(S,double R,double Y,int M,int Q,dict Norm={},in
     if verbose>0:
         print "comp_dim=",comp_dim
     normalize_matrix_cplx_dp(V1,N1,comp_dim,num_set,setc_list,vals_list,verbose)
-    if gr==2:
+    if gr==2 or gr==5:
         CF=MPComplexField(53)
         MS=MatrixSpace(CF,N1,ncols1)
         VV=Matrix_complex_dense(MS,0)
         for n in range(N1):
             for l in range(ncols1):
                 VV[n,l]=V1[n][l]
-        return VV
+        #return VV
     sig_on()
     if verbose>0:
         print "comp_dim=",comp_dim
     if do_par<=1:
         SMAT_cplx_dp(V1,ncols1-num_set,comp_dim,num_set,C,vals_list,setc_list)
+        if gr==5:
+            ## check result...
+            CF=MPComplexField(53)
+            MS=MatrixSpace(CF,ncols1-num_set,ncols1-num_set)
+            VVV=Matrix_complex_dense(MS,0)
+            MSB=MatrixSpace(CF,ncols1-num_set,comp_dim)
+            B=Matrix_complex_dense(MSB,0)
+            MSC=MatrixSpace(CF,comp_dim,ncols1-num_set)
+            C1=Matrix_complex_dense(MSC,0)
+            for n in range(ncols1-num_set):
+                for l in range(ncols1-num_set):
+                    VVV[n,l]=VV[n,l]
+                for l in range(comp_dim):
+                    C1[l,n]=C[l][n]
+                for l in range(comp_dim):
+                    B[n,l]=VV[n,ncols1-num_set+l]
+            print "return here"
+            return VVV,C1,B
     else:
         if verbose>0:
             print "smat parallel!"
@@ -2112,18 +2166,26 @@ cpdef get_coeff_fast_cplx_dp_sym(S,double R,double Y,int M,int Q,dict Norm={},in
     if verbose>1:
         for k in range(ncols1-num_set):
             print "C[",k,"]=",C[0][k]
+    if gr==3 or gr==4:
+        CF=MPComplexField(53)
+        MSC=MatrixSpace(CF,comp_dim,N1)
+        C1=Matrix_complex_dense(MSC,0)
+        for n in range(comp_dim):
+            for l in range(N1):
+                C1[n,l]=C[n][l]
     cdef dict res={}
     cdef int ki
-    for j in range(comp_dim):
-        res[j]=dict()
-        for i in range(nc):
-            if i>0 and cusp_evs[i]<>0:
-                res[j][i]=cusp_evs[i]
-                continue
-            res[j][i]=dict()
-            for k in range(Mv[i][2]):
-                ki=cusp_offsets[i]+k
-                res[j][i][k+Mv[i][0]]=C[j][ki]
+    if gr==0:
+        for j in range(comp_dim):
+            res[j]=dict()
+            for i in range(nc):
+                if i>0 and cusp_evs[i]<>0:
+                    res[j][i]=cusp_evs[i]
+                    continue
+                res[j][i]=dict()
+                for k in range(Mv[i][2]):
+                    ki=cusp_offsets[i]+k
+                    res[j][i][k+Mv[i][0]]=C[j][ki]
 
     if setc_list<>NULL:
         sage_free(setc_list)
@@ -2158,6 +2220,14 @@ cpdef get_coeff_fast_cplx_dp_sym(S,double R,double Y,int M,int Q,dict Norm={},in
         sage_free(cusp_evs)
     #if comp_dim==1:
     #    return res[0]
+    if gr==1:
+        return VV
+    elif gr==2:
+        return VV
+    elif gr==3:
+        return C1
+    elif gr==4:
+        return VV,C1
     return res
 
 # cpdef get_coeff_fast_cplx_dp_nosym(S,double R,double Y,int M,int Q,dict Norm={},int gr=0,int norm_c=1,int do_par=0,int ncpus=1):
@@ -3245,7 +3315,7 @@ cpdef setup_matrix_for_Maass_waveforms_np_cplx2_without_sym(S,RealNumber R,RealN
                     ##     mpfr_set(tmpx1.value,besarg,rnd_re)
                     ##     print "besarg=",tmpx1
                     ##     print "dbesarg=",dbesarg
-                    dbes = besselk_dp(R,dbesarg,pref=1)
+                    dbes = my_kbes(R,dbesarg,pref=1)
                     mpfr_sqrt(kbes,tmpx1.value,rnd_re)
                     mpfr_mul_d(kbes,kbes,dbes,rnd_re)
                     #kbes=mp_ctx.sqrt(ypb)*
@@ -3274,7 +3344,7 @@ cpdef setup_matrix_for_Maass_waveforms_np_cplx2_without_sym(S,RealNumber R,RealN
                 mpfr_mul(nrY2pi,nvec[n-Ms],Y2pi,rnd_re)
                 mpfr_abs(nrY2pi,nrY2pi,rnd_re)
                 dbesarg = mpfr_get_d(nrY2pi,rnd_re)
-                dbes = besselk_dp(R,dbesarg,pref=1)
+                dbes = my_kbes(R,dbesarg,pref=1)
                 mpfr_mul_d(kbes,sqrtY,dbes,rnd_re)
                 mpc_sub_fr(VV._matrix[ni][ni],VV._matrix[ni][ni],kbes,rnd)
             #V[ni,ni]=V[ni,ni]-ckbes
@@ -3673,8 +3743,27 @@ def smallest_inf_norm(V):
             mi=j
     return minc
 
+cpdef get_M_and_Y_v2(double R,double Y0,int M0,double eps,int mmax=1000,int verbose=0):
+    r"""
 
-cpdef get_M_and_Y(double R,double Y0,int M0,double eps,int verbose=0):
+    """
+    R0 = max(R,1)
+    kmax = besselk_dp(R,R0,pref=0)*eps
+    try:
+        for m in range(10,mmax):
+            k = besselk_dp(R,m*Y0*2*M_PI,pref=0)
+            if abs(k)<abs(kmax):
+                raise StopIteration
+        raise ArithmeticError,"Could not find suitable m0!"
+    except StopIteration:
+        pass
+    if verbose>2:
+        print "M0=",M0
+    
+    
+
+        
+cpdef get_M_and_Y(double R,double Y0,int M0,double eps,int mmax=10000,int verbose=0,int cuspidal=0):
     r""" Computes the  truncation point M>=M0 for Maass waveform with parameter R.
     using both a check that the diagonal term in the V-matrix is not too small
     and that the truncation gives the correct accuracy.
@@ -3701,43 +3790,144 @@ cpdef get_M_and_Y(double R,double Y0,int M0,double eps,int verbose=0):
 
 
     """
+    M = get_M_from_Y(R,Y0,M0,eps,maxm=mmax,verbose=verbose,cuspidal=cuspidal)
+    return M,Y0
     # initial value of M
-    MM=max(M0,ceil((12.0*R**0.3333+R)/RR.pi()/Y0/2.0))
+    MM=max(M0,ceil((12.0*R**0.3333+R)/(2*M_PI*Y0)))
     ## initial value of Y
+    ## choosen s.t. we are to the right of the "hump" of the K-Bessel function
     Y = min(Y0, (log(2.0)-log(eps)-0.5*log(MM)+M_PI*R*0.5)/(2*M_PI*MM))
     if verbose>0:
         print "MM=",MM
         print "Y=",Y
-    if M0>0 and Y>0: # check if we are opk to begin with
+    if M0>0 and Y>0: # check if we are ok to begin with
          if err_est_Maasswf(Y,M0,R,1)<eps:
              return M0,Y
          
     #if Y<0 or Y>Y0:
     #    raise ArithmeticError,"Could not get a good point"
     ## Now change M if necessary
-    minm = ceil((12.0*R**0.3333+R)/RR.pi()/Y/2.0)
+    minm = ceil((12.0*R**0.3333+R)/(M_PI*Y*2.0))
     if verbose>0:
         print "minm=",minm
     ## Use low precision
     try:
         for m in range(minm+1,10000,3):
+            if m>mmax and mmax>0:
+                continue
             erest=err_est_Maasswf(Y,m,R,1)
             if verbose>2:
                 print "erest({0},{1},{2},1)={3}".format(Y,m,R,erest)
             if erest<eps:
-                raise StopIteration()
+                YY = (log(2.0)-log(eps)-0.5*log(float(m))+M_PI*R*0.5)/(2*M_PI*float(m))
+                YY = min(YY,Y0)
+                erest=err_est_Maasswf(YY,m,R,1)
+                #if verbose>2:                    
+                #    print "erest({0},{1},{2},1)={3}".format(YY,m,R,erest)
+                #if erest < eps:
+                #    raise StopIteration()
     except StopIteration:
-        Y = (log(2.0)-log(eps)-0.5*log(RR(m))+M_PI*R*0.5)/(2*M_PI*RR(m))                   
+        Y = (log(2.0)-log(eps)-0.5*log(float(m))+M_PI*R*0.5)/(2*M_PI*float(m))                   
         Y = min(Y,Y0)
         return m,Y
-    raise Exception," No good value for truncation was found!"
+    raise ArithmeticError," No good value for truncation was found!"
 
-cpdef get_M_from_Y(double R,double Y0,int M0,double eps,int verbose=0,maxm=1000):
+cpdef get_M_from_Y(double R,double Y0,int M0,double eps,int verbose=0,int maxm=1000,int cuspidal=0):
     r""" Computes the  truncation point M>=M0 for Maass waveform with parameter R.
     using both a check that the diagonal term in the V-matrix is not too small
     and that the truncation gives the correct accuracy.
 
     CAVEAT: The estimate for the truncated series is done assuming that the asymptotic formula holds for 2piYM > R+12R^(1/3)
+    which is not proven rigorously. Furthermore, the implied constant in this estimate is assumed to be 1 (which is of course only true asymptotically).
+
+    INPUT:
+
+        - ``R`` -- spectral parameter, real
+        - ``Y`` -- height, real > 0
+        - ``eps`` -- desired error
+
+
+    OUTPUT:
+
+        - ``M`` -- point for truncation
+
+    EXAMPLES::
+
+
+        sage:
+
+    """
+    #maxm = 2000
+    ## initial value of M
+    M0 = ceil( 4.0/7.0/M_PI/Y0)
+    if cuspidal==1:
+        rhs = abs(eps)*sqrt(M_PI/8.0)
+        beta = 2*M_PI*Y0
+    else:
+        rhs = abs(eps)*exp(-3*R)*sqrt(M_PI/8.0)
+        beta = 7.0*M_PI*Y0/4.0
+    minm=max(10,M0)
+    if verbose>0:
+        print "rhs={0}".format(rhs)
+    try:
+        for M in range(minm,minm+maxm):
+            ## Want to find largest Y which satisfies both estimates for the given M0
+            lhs = sqrt(float(M))*exp(-beta*M)
+            if verbose>0:
+                print "lhs({0})={1}".format(M,lhs)
+            if lhs<rhs:
+                raise StopIteration()
+    except StopIteration:
+        return M
+    raise Exception," No good value for truncation was found!"
+
+cpdef get_Y_from_M(double R,double Y0,int M0,double eps,int verbose=0,int maxny=1000,int cuspidal=0):
+    r""" Computes the  truncation point M>=M0 for Maass waveform with parameter R.
+    using both a check that the diagonal term in the V-matrix is not too small
+    and that the truncation gives the correct accuracy.
+
+    CAVEAT: The estimate for the truncated series is done assuming that the asymptotic formula holds for 2piYM > R+12R^(1/3)
+    which is not proven rigorously. Furthermore, the implied constant in this estimate is assumed to be 1 (which is of course only true asymptotically).
+
+    INPUT:
+
+        - ``R`` -- spectral parameter, real
+        - ``Y`` -- height, real > 0
+        - ``eps`` -- desired error
+
+
+    OUTPUT:
+
+        - ``M`` -- point for truncation
+
+    EXAMPLES::
+
+
+        sage:
+
+    """
+    #maxm = 2000
+    ## initial value of Y  s.t. 
+    Y0 =  max(Y0,min(Y0,4.0/7.0/M_PI/float(M0)))
+    if cuspidal==1:
+        rhs = abs(eps)*sqrt(M_PI/8.0)/sqrt(float(M0))
+        gamma = 2*M_PI
+    else:
+        rhs = abs(eps)*exp(-3*R)*sqrt(M_PI/8.0)/sqrt(float(M0))
+        gamma = 7.0*M_PI/4.0
+    Y = -RR(rhs).log()/float(M0)/gamma
+    if verbose>0:
+        print "rhs=",rhs
+        print "Y0=",Y0
+        print "Y=",Y
+    return min(Y,Y0)
+
+cpdef get_M_from_Y_old(double R,double Y0,int M0,double eps,int verbose=0,maxm=1000):
+    r""" Computes the  truncation point M>=M0 for Maass waveform with parameter R.
+    using both a check that the diagonal term in the V-matrix is not too small
+    and that the truncation gives the correct accuracy.
+
+    CAVEAT: The estimate for the truncated series is done assuming that the asymptotic formula holdsM0Y for 2piYM > R+12R^(1/3)
     which is not proven rigorously. Furthermore, the implied constant in this estimate is assumed to be 1 (which is of course only true asymptotically).
 
     INPUT:
@@ -3786,7 +3976,8 @@ cpdef get_M_from_Y(double R,double Y0,int M0,double eps,int verbose=0,maxm=1000)
         return M
     raise Exception," No good value for truncation was found!"
 
-cpdef  get_Y_from_M(double R,double Y0,int M0,double eps,int verbose=0,int maxny=2000):
+
+cpdef  get_Y_from_M_old(double R,double Y0,int M0,double eps,int verbose=0,int maxny=2000):
     r""" Computes the  truncation point M>=M0 for Maass waveform with parameter R.
     using both a check that the diagonal term in the V-matrix is not too small
     and that the truncation gives the correct accuracy.
@@ -3886,7 +4077,7 @@ def get_M_for_maass(R,Y,eps):
 
     try:
         for m in range(minm+1,10000,3):
-            erest=err_est_Maasswf(Y,m,R,1)
+            erest=err_est_Maasswf_c(Y,m,R,1)
             #print "erest=",erest
             if erest<eps:
                 raise StopIteration()
@@ -3897,14 +4088,23 @@ def get_M_for_maass(R,Y,eps):
     raise Exception," No good value for truncation was found!"
 
 
-def err_est_Maasswf(Y,M,R=0,pref=1):
+def err_est_Maasswf(Y,M,R=0,pref=1,proof=False):
     r"""
-    Estimate the truncated series: $|\Sum_{n\ge M} a(n) \sqrt{Y} K_{iR}(2\pi nY) e(nx)|$
-    we use that K_{iR}(x) = sqrt(pi/2x)e^-x to estimate the sum with
-    1/sqrt(2Y) erfc(sqrt(2piMY))
+    Estimate the truncated series: 
+      $|\Sum_{n\ge M} a(n) \sqrt{Y} K_{iR}(2\pi nY) e(nx)|$
+    we use that K_{iR}(x) \sim sqrt(pi/2x)e^-x to estimate the sum with
+     O_R(1) sqrt(pi/2)  |$\sum_{n\ge M} (2piny)^(-1/2)e^-(2piny)|
+     which we then estimate by an integral and get: 
+     sqrt(pi/2)  Gamma(3/2,2piMY) 
+    and finally, for Y>1/(2piM) we have |Gamma(3/2,2piMY)|< 2x^(1/2)e^-x
+
+    so that the final bound is 
+    2O_R(1) M^(1/2) e^(-2piMY) 
     CAVEATS:
     - we assume the Ramanujan bound for the coefficients $a(n)$, i.e. $|a(n)|\le2$.
     - error estimate holds for 2piMY >> R
+    - there is an implicit constant dependning on R which we neglect if proof=False
+      (currently this is the only value supported)
 
     INPUT:
 
@@ -3924,18 +4124,55 @@ def err_est_Maasswf(Y,M,R=0,pref=1):
         mpf('5.3032651127544969e-25')
 
     """
+    if proof==True:
+        raise NotImplementedError
     import mpmath
     mpmath.mp.pres=103
-    YY = mpmath.mp.mpf(Y)
-    #arg=sqrt(2*mpmath.fp.pi*YY*M)
-    gamma_arg=2*mpmath.mp.pi*YY*M
-    if pref==1:
-        f = exp(mpmath.mp.pi*R/2.0)*mpmath.mp.sqrt(2.0/YY)
+    if R < 100: ## ordinary doubles should be sufficient
+        if pref==1:
+            f = exp(M_PI*R*0.5)
+        else:
+            f = 1
+            #    r = f*mpmath.fp.erfc(arg)
+        r = f*2*M**(0.5)*exp(-2*M_PI*Y*M)
+
     else:
-        f = mpmath.mp.sqrt(2.0/YY) 
-#    r = f*mpmath.fp.erfc(arg)
-    r = f*mpmath.mp.gammainc(0.75,gamma_arg)
+        YY = mpmath.mp.mpf(Y)
+        #arg=sqrt(2*mpmath.fp.pi*YY*M)
+        #gamma_arg=2*mpmath.mp.pi*YY*M
+        if pref==1:
+            f = exp(mpmath.mp.pi*R/2.0)
+            #*mpmath.mp.sqrt(2.0/YY)
+        else:
+            f = 1
+            #    r = f*mpmath.fp.erfc(arg)
+        r = f*2*M**(0.5)*exp(-2*M_PI*YY*M)
+    #mpmath.mp.gammainc(0.75,gamma_arg)
     return r
+
+cpdef err_est_Maasswf_c(double Y,int M,double R=0,int pref=1):
+    if R < 100: ## ordinary doubles should be sufficient
+        if pref==1:
+            f = exp(M_PI*R*0.5)
+        else:
+            f = 1
+            #    r = f*mpmath.fp.erfc(arg)
+        r = f*2*M**(0.5)*exp(-2*M_PI*Y*M)
+
+    else:
+        YY = mpmath.mp.mpf(Y)
+        #arg=sqrt(2*mpmath.fp.pi*YY*M)
+        #gamma_arg=2*mpmath.mp.pi*YY*M
+        if pref==1:
+            f = exp(mpmath.mp.pi*R/2.0)
+            #*mpmath.mp.sqrt(2.0/YY)
+        else:
+            f = 1
+            #    r = f*mpmath.fp.erfc(arg)
+        r = f*2*M**(0.5)*exp(-2*M_PI*YY*M)
+    #mpmath.mp.gammainc(0.75,gamma_arg)
+    return r
+
 
 # cpdef get_Y_and_M_dp(S,double R,double eps,int verbose=0):
 #     cdef int i,M0,MMAX=1000,m
@@ -3952,8 +4189,19 @@ def err_est_Maasswf(Y,M,R=0,pref=1):
 #         return Y,MM
 #     raise ArithmeticError,"Could not find good Y and M for eps={0}".format(eps)
 
-
-
+cpdef get_Y_for_M(double R,int M0,double eps,double Y0,int verbose=0,int cuspidal=0):
+    r"""
+    Computes a value of Y for a given M for which
+    the estimated error is smaller than eps
+    """
+    Y = Y0
+    for i in range(1,1000):
+        Y = Y*0.999**i
+        M=get_M_from_Y(R,Y,1,eps,cuspidal=cuspidal)
+        if M > M0:
+            return Y
+    raise ArithmeticError,"Could not find a good Y!"
+        
 cpdef get_Y_for_M_dp_old(double R,int M,double eps,double Y,int nc,int verbose=0):
     r"""
     Computes a value of Y for a given M for which
@@ -4919,11 +5167,11 @@ cpdef split_interval(H,double R1,double R2):
                 iv=(r11,t,Y0); new_ivs.append(iv)
                 # must find Y0 s.t. |besselk(it,Y0)| is large enough
                 Y1=Y0
-                k=besselk_dp(t,Y1)
+                k=my_kbes(t,Y1)
                 j=0
                 while j<1000 and abs(k)<1e-3:
                     Y1=Y1*0.999;j=j+1
-                    k=besselk_dp(t,Y1)
+                    k=my_kbes(t,Y1)
                 Y0=Y1
                 r11=t+1E-08
         return new_ivs
@@ -4951,7 +5199,7 @@ def next_kbessel_zero(double r1,double r2,double y,int verbose=0):
             r0=r0+h
             my_kbes_diff_real_dp(r0,y,&kd)
             #t1=base.findroot(lambda x :  besselk_dp(x,y),r0)
-            t1=find_root(lambda x :  besselk_dp(x,y),r0-h,r0+h,xtol=xtol,rtol=rtol)
+            t1=find_root(lambda x :  my_kbes(x,y),r0-h,r0+h,xtol=xtol,rtol=rtol)
             r0=r0+h
             if verbose>0:
                 print "r0,y,t1=",r0,y,t1
@@ -4970,7 +5218,7 @@ def next_kbessel_zero(double r1,double r2,double y,int verbose=0):
                 my_kbes_diff_real_dp(r0,y,&kd)
                 #kd=my_kbes_diff_r(r0,y,base)
                 #t2=base.findroot(lambda x :
-                t2=find_root(lambda x :  besselk_dp(x,2.0*y),r0-h,r0+h,xtol=xtol,rtol=rtol)
+                t2=find_root(lambda x :  my_kbes(x,2.0*y),r0-h,r0+h,xtol=xtol,rtol=rtol)
             #t2=base.findroot(lambda x :  base.besselk(base.mpc(0,x),base.mpf(2*y),verbose=True).real,r0)
             r0=r0+h
         if r0>=r2 or t2>=r2:
@@ -4984,8 +5232,8 @@ cdef my_kbes_diff_real_dp(double r,double x,double *diff):
     cdef double h,f1,f2
     h=1e-8
     #print "r,x,h=",r,x,h
-    f1 = besselk_dp(r,x+h)
-    f2 = besselk_dp(r,x-h)
+    f1 = my_kbes(r,x+h)
+    f2 = my_kbes(r,x-h)
     diff[0]=0.5*(f2-f1)/h
 
 ### Algorithms for detecting eigenvalues by signchanges
