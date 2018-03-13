@@ -22,7 +22,7 @@ AUTHORS:
 from sage.all import SageObject, Integer, RR, is_odd, next_prime, floor, \
                      RealField, ZZ, ceil, log, ComplexField, real, sqrt, exp, round, imag
 #import sys
-#from .weight_one_half import *
+from .weight_one_half import *
 
 try:
     from psage.modules.finite_quadratic_module import FiniteQuadraticModule
@@ -168,7 +168,7 @@ class VectorValuedModularForms(SageObject):
                 self._alpha3 = self._alpha3/RR(2)
             else:
                 self._alpha3 = eps*sum([(1-a)*mm for a,mm in self._v2.iteritems() if a != 0])
-                print "alpha3t = ", self._alpha3
+                if debug>0: print "alpha3t = ", self._alpha3
                 self._alpha3 += sum([(1-a)*mm for a,mm in vals.iteritems() if a != 0])
                 #print self._alpha3
                 self._alpha3 = self._alpha3 / Integer(2)
@@ -210,6 +210,8 @@ class VectorValuedModularForms(SageObject):
                 print "Computing dimension for {}".format(self._g)
             else:
                 print "Computing dimension for {}".format(self._M)
+        if (2*k+self._signature)%2 != 0:
+            return 0
         if k == Integer(3)/2:
             dim = self.dimension(k, True, debug=debug) - self._alpha4
             if not test_positive or dim <= 0:

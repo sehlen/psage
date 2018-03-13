@@ -1,6 +1,6 @@
 from sage.all import SageObject, Integer, RR, is_odd, next_prime, floor, RealField, ZZ, ceil, log, ComplexField, real, sqrt, exp, is_squarefree, lcm, Matrix, cached_function
 from psage.modules.finite_quadratic_module import FiniteQuadraticModule
-from psage.modules.weil_invariants import invariants
+from psage.external.weil_invariants.weil_invariants import invariants
 from copy import copy
 
 @cached_function

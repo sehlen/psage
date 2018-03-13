@@ -49,6 +49,9 @@ class Extension(setuptools.extension.Extension):
 
 
 ext_modules = [
+        Extension("psage.groups.dirichlet_conrey",
+                                ['psage/groups/dirichlet_conrey.pyx'],
+                                extra_compile_args = ['-w','-O2'])
 ]
 
 ## Stephan Ehlen's additional modules
