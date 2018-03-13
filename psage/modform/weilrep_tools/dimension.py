@@ -20,15 +20,17 @@ AUTHORS:
 
 #from psage.modules import *
 from sage.all import SageObject, Integer, RR, is_odd, next_prime, floor, \
-                     RealField, ZZ, ceil, log, ComplexField, real, sqrt, exp, round
+                     RealField, ZZ, ceil, log, ComplexField, real, sqrt, exp, round, imag
 #import sys
 from .weight_one_half import *
 
 try:
     from psage.modules.finite_quadratic_module import FiniteQuadraticModule
-    from psage.modules.weil_invariants import cython_invariants_dim
+    from psage.external.weil_invariants.weil_invariants import cython_invariants_dim
 except ImportError:
     raise
+
+from psage.modules.finite_quadratic_module import FiniteQuadraticModule
 
 def BB(x):
     RF=RealField(100)
@@ -104,8 +106,6 @@ class VectorValuedModularForms(SageObject):
             m = self._M.order()
             
         self._m = m
-        d = Integer(1)/Integer(2)*(m+n2) # |discriminant group/{+/-1}|
-        self._d = d
         self._alpha3 = None
         self._alpha4 = None
 
@@ -121,8 +121,10 @@ class VectorValuedModularForms(SageObject):
         s = self._signature
         if not (2*k in ZZ):
             raise ValueError("k has to be integral or half-integral")
-        if (2*k+s)%4 != 0 and not ignore:
-            raise NotImplementedError("2k has to be congruent to -signature mod 4")
+        if (2*k+s)%2 != 0:
+            return 0
+        m = self._m
+        n2 = self._n2
         if self._v2.has_key(0):
             v2 = self._v2[0]
         else:
@@ -137,16 +139,26 @@ class VectorValuedModularForms(SageObject):
         else:
             vals = self._M.values()
             M = self._M
+
+        if (2*k+s)%4 == 0:
+            d = Integer(1)/Integer(2)*(m+n2) # |dimension of the Weil representation on even functions|
+            self._d = d
+            self._alpha4 = 1/Integer(2)*(vals[0]+v2) # the codimension of SkL in MkL
+        else:
+            d = Integer(1)/Integer(2)*(m-n2) # |dimension of the Weil representation on odd functions|
+            self._d = d
+            self._alpha4 = 1/Integer(2)*(vals[0]-v2) # the codimension of SkL in MkL
             
         prec = ceil(max(log(M.order(),2),52)+1)+17
         #print prec
         RR = RealField(prec)
         CC = ComplexField(prec)
-        d = self._d
-        m = self._m
-        if debug > 0: print d,m
-            
-        if self._alpha3 == None:
+        
+        if debug > 0: print "d, m = {0}, {1}".format(d,m)
+        eps = exp( 2 * CC.pi() * CC(0,1) * (s + 2*k) / Integer(4) )
+        eps = round(real(eps))        
+        if self._alpha3 is None or self._last_eps != eps:
+            self._last_eps = eps
             if self._aniso_formula:
                 self._alpha4 = 1
                 self._alpha3 = -sum([BB(a)*mm for a,mm in self._v2.iteritems() if a != 0])
@@ -155,12 +167,11 @@ class VectorValuedModularForms(SageObject):
                 #print self._alpha3, self._g.a5prime_formula()
                 self._alpha3 = self._alpha3/RR(2)
             else:
-                self._alpha3 = sum([(1-a)*mm for a,mm in self._v2.iteritems() if a != 0])
-                #print self._alpha3
+                self._alpha3 = eps*sum([(1-a)*mm for a,mm in self._v2.iteritems() if a != 0])
+                if debug>0: print "alpha3t = ", self._alpha3
                 self._alpha3 += sum([(1-a)*mm for a,mm in vals.iteritems() if a != 0])
                 #print self._alpha3
                 self._alpha3 = self._alpha3 / Integer(2)
-                self._alpha4 = 1/Integer(2)*(vals[0]+v2) # the codimension of SkL in MkL
         alpha3 = self._alpha3
         alpha4 = self._alpha4
         if debug > 0: print alpha3, alpha4
@@ -168,15 +179,20 @@ class VectorValuedModularForms(SageObject):
         g1=CC(g1[0]*g1[1])
         #print g1
         g2=M.char_invariant(2)
-        g2=RR(real(g2[0]*g2[1]))
+        g2=CC(g2[0]*g2[1])
         if debug > 0: print g2, g2.parent()
         g3=M.char_invariant(-3)
         g3=CC(g3[0]*g3[1])
-        if debug > 0: print RR(d) / RR(4), sqrt(RR(m)) / RR(4), CC(exp(2 * CC.pi() * CC(0,1) * (2 * k + s) / Integer(8)))
-        alpha1 = RR(d) / RR(4) - (sqrt(RR(m)) / RR(4)  * CC(exp(2 * CC.pi() * CC(0,1) * (2 * k + s) / Integer(8))) * g2)
+        if debug > 0: print "eps = {0}".format(eps)
+        if debug > 0: print "d/4 = {0}, m/4 = {1}, e^(2pi i (2k+s)/8) = {2}".format(RR(d) / RR(4), sqrt(RR(m)) / RR(4), CC(exp(2 * CC.pi() * CC(0,1) * (2 * k + s) / Integer(8))))
+        if eps == 1:
+            g2_2 = real(g2)
+        else:
+            g2_2 = imag(g2)*CC(0,1)
+        alpha1 = RR(d) / RR(4) - sqrt(RR(m)) / RR(4)  * CC(exp(2 * CC.pi() * CC(0,1) * (2 * k + s) / Integer(8)) * g2_2)
         if debug > 0: print alpha1
-        alpha2 = RR(d) / RR(3) + sqrt(RR(m)) / (3 * sqrt(RR(3))) * real(exp(CC(2 * CC.pi() * CC(0,1) * (4 * k + 3 * s - 10) / 24)) * (g1+g3))
-        if debug > 0: print alpha1, alpha2, g1, g2, g3, d, k, s
+        alpha2 = RR(d) / RR(3) + sqrt(RR(m)) / (3 * sqrt(RR(3))) * real(exp(CC(2 * CC.pi() * CC(0,1) * (4 * k + 3 * s - 10) / 24)) * (g1 + eps*g3))
+        if debug > 0: print "alpha1 = {0}, alpha2 = {1}, alpha3 = {2}, g1 = {3}, g2 = {4}, g3 = {5}, d = {6}, k = {7}, s = {8}".format(alpha1, alpha2, alpha3, g1, g2, g3, d, k, s)
         dim = real(d + (d * k / Integer(12)) - alpha1 - alpha2 - alpha3)
         if debug > 0:
             print "dimension:", dim
@@ -194,6 +210,8 @@ class VectorValuedModularForms(SageObject):
                 print "Computing dimension for {}".format(self._g)
             else:
                 print "Computing dimension for {}".format(self._M)
+        if (2*k+self._signature)%2 != 0:
+            return 0
         if k == Integer(3)/2:
             dim = self.dimension(k, True, debug=debug) - self._alpha4
             if not test_positive or dim <= 0:
